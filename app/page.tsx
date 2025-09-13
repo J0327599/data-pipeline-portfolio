@@ -1,9 +1,9 @@
 "use client"
 
 import { useState } from "react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -20,6 +20,13 @@ import {
   Cpu,
   Code,
   Server,
+  Menu,
+  X,
+  Home,
+  User,
+  Briefcase,
+  FolderOpen,
+  MessageSquare,
 } from "lucide-react"
 
 const projectDetails = {
@@ -739,7 +746,7 @@ class RiskAnalyticsEngine:
         
         return var_calculation
     
-    def operational_risk_assessment(self, operational_data):
+    def operational_risk_assessment(self, self, operational_data):
         """Assess operational risk using key risk indicators"""
         
         operational_metrics = operational_data.select(
@@ -1134,11 +1141,114 @@ generate_risk_dashboard <- function(credit_results, market_results, operational_
 
 export default function Portfolio() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(sectionId)
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth" })
+      setIsMobileMenuOpen(false) // Close mobile menu after navigation
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b">
+        <div className="max-w-6xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="font-serif font-bold text-xl text-primary">SE</div>
+
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center space-x-8">
+              <button
+                onClick={() => scrollToSection("home")}
+                className="text-sm font-medium hover:text-primary transition-colors"
+              >
+                Home
+              </button>
+              <button
+                onClick={() => scrollToSection("skills")}
+                className="text-sm font-medium hover:text-primary transition-colors"
+              >
+                Skills
+              </button>
+              <button
+                onClick={() => scrollToSection("experience")}
+                className="text-sm font-medium hover:text-primary transition-colors"
+              >
+                Experience
+              </button>
+              <button
+                onClick={() => scrollToSection("projects")}
+                className="text-sm font-medium hover:text-primary transition-colors"
+              >
+                Projects
+              </button>
+              <button
+                onClick={() => scrollToSection("contact")}
+                className="text-sm font-medium hover:text-primary transition-colors"
+              >
+                Contact
+              </button>
+            </div>
+
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="md:hidden p-2 hover:bg-muted rounded-lg transition-colors"
+              aria-label="Toggle menu"
+            >
+              {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          </div>
+
+          {/* Mobile Navigation Menu */}
+          {isMobileMenuOpen && (
+            <div className="md:hidden mt-4 pb-4 border-t">
+              <div className="flex flex-col space-y-3 pt-4">
+                <button
+                  onClick={() => scrollToSection("home")}
+                  className="flex items-center space-x-3 text-sm font-medium hover:text-primary transition-colors py-2"
+                >
+                  <Home className="h-4 w-4" />
+                  <span>Home</span>
+                </button>
+                <button
+                  onClick={() => scrollToSection("skills")}
+                  className="flex items-center space-x-3 text-sm font-medium hover:text-primary transition-colors py-2"
+                >
+                  <User className="h-4 w-4" />
+                  <span>Skills</span>
+                </button>
+                <button
+                  onClick={() => scrollToSection("experience")}
+                  className="flex items-center space-x-3 text-sm font-medium hover:text-primary transition-colors py-2"
+                >
+                  <Briefcase className="h-4 w-4" />
+                  <span>Experience</span>
+                </button>
+                <button
+                  onClick={() => scrollToSection("projects")}
+                  className="flex items-center space-x-3 text-sm font-medium hover:text-primary transition-colors py-2"
+                >
+                  <FolderOpen className="h-4 w-4" />
+                  <span>Projects</span>
+                </button>
+                <button
+                  onClick={() => scrollToSection("contact")}
+                  className="flex items-center space-x-3 text-sm font-medium hover:text-primary transition-colors py-2"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <span>Contact</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </nav>
+
       {/* Hero Section */}
-      <section className="relative py-20 px-4 text-center bg-gradient-to-br from-muted to-card">
+      <section id="home" className="relative py-20 px-4 text-center bg-gradient-to-br from-muted to-card pt-32">
         <div className="max-w-4xl mx-auto">
           <div className="mb-8">
             <img
@@ -1171,7 +1281,7 @@ export default function Portfolio() {
       </section>
 
       {/* Skills Section */}
-      <section className="py-16 px-4">
+      <section id="skills" className="py-16 px-4">
         <div className="max-w-6xl mx-auto">
           <h2 className="text-4xl font-serif font-bold text-center mb-12 text-balance">Technical Expertise</h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -1280,8 +1390,91 @@ export default function Portfolio() {
         </div>
       </section>
 
+      {/* Experience Section */}
+      <section id="experience" className="py-16 px-4">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-4xl font-serif font-bold text-center mb-12 text-balance">Professional Experience</h2>
+          <div className="space-y-8">
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-xl">Senior Data Engineer</CardTitle>
+                    <CardDescription className="text-base">TechCorp Solutions • 2021 - Present</CardDescription>
+                  </div>
+                  <Badge variant="outline" className="w-fit">
+                    Current Role
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li>
+                    • Led the design and implementation of a multi-petabyte data lake on AWS S3 with automated data
+                    governance
+                  </li>
+                  <li>• Optimized Spark jobs reducing processing time by 70% and infrastructure costs by 45%</li>
+                  <li>
+                    • Mentored a team of 5 junior engineers and established best practices for data pipeline development
+                  </li>
+                  <li>
+                    • Implemented real-time streaming analytics processing 50M+ events daily with sub-second latency
+                  </li>
+                </ul>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-xl">Data Engineer</CardTitle>
+                    <CardDescription className="text-base">DataFlow Analytics • 2019 - 2021</CardDescription>
+                  </div>
+                  <Badge variant="outline" className="w-fit">
+                    2 Years
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li>• Built and maintained ETL pipelines processing 100GB+ daily using Apache Airflow and Python</li>
+                  <li>
+                    • Migrated legacy data warehouse to cloud-native architecture improving query performance by 10x
+                  </li>
+                  <li>• Developed automated data quality monitoring reducing data incidents by 80%</li>
+                  <li>• Collaborated with data scientists to productionize ML models serving 1M+ predictions daily</li>
+                </ul>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-xl">Junior Data Analyst</CardTitle>
+                    <CardDescription className="text-base">StartupTech Inc • 2017 - 2019</CardDescription>
+                  </div>
+                  <Badge variant="outline" className="w-fit">
+                    2 Years
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li>• Developed automated reporting dashboards using Tableau and SQL reducing manual work by 90%</li>
+                  <li>• Performed statistical analysis on customer data identifying key growth opportunities</li>
+                  <li>• Built data validation scripts ensuring 99.9% data accuracy across all business metrics</li>
+                  <li>• Created comprehensive documentation for data processes and analytical methodologies</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
       {/* Projects Section */}
-      <section className="py-16 px-4 bg-muted/30">
+      <section id="projects" className="py-16 px-4 bg-muted/30">
         <div className="max-w-6xl mx-auto">
           <h2 className="text-4xl font-serif font-bold text-center mb-12 text-balance">Featured Projects</h2>
           <div className="grid md:grid-cols-2 gap-8">
@@ -1948,91 +2141,8 @@ export default function Portfolio() {
         </div>
       </section>
 
-      {/* Experience Section */}
-      <section className="py-16 px-4">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-4xl font-serif font-bold text-center mb-12 text-balance">Professional Experience</h2>
-          <div className="space-y-8">
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-xl">Senior Data Engineer</CardTitle>
-                    <CardDescription className="text-base">TechCorp Solutions • 2021 - Present</CardDescription>
-                  </div>
-                  <Badge variant="outline" className="w-fit">
-                    Current Role
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li>
-                    • Led the design and implementation of a multi-petabyte data lake on AWS S3 with automated data
-                    governance
-                  </li>
-                  <li>• Optimized Spark jobs reducing processing time by 70% and infrastructure costs by 45%</li>
-                  <li>
-                    • Mentored a team of 5 junior engineers and established best practices for data pipeline development
-                  </li>
-                  <li>
-                    • Implemented real-time streaming analytics processing 50M+ events daily with sub-second latency
-                  </li>
-                </ul>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-xl">Data Engineer</CardTitle>
-                    <CardDescription className="text-base">DataFlow Analytics • 2019 - 2021</CardDescription>
-                  </div>
-                  <Badge variant="outline" className="w-fit">
-                    2 Years
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li>• Built and maintained ETL pipelines processing 100GB+ daily using Apache Airflow and Python</li>
-                  <li>
-                    • Migrated legacy data warehouse to cloud-native architecture improving query performance by 10x
-                  </li>
-                  <li>• Developed automated data quality monitoring reducing data incidents by 80%</li>
-                  <li>• Collaborated with data scientists to productionize ML models serving 1M+ predictions daily</li>
-                </ul>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-xl">Junior Data Analyst</CardTitle>
-                    <CardDescription className="text-base">StartupTech Inc • 2017 - 2019</CardDescription>
-                  </div>
-                  <Badge variant="outline" className="w-fit">
-                    2 Years
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li>• Developed automated reporting dashboards using Tableau and SQL reducing manual work by 90%</li>
-                  <li>• Performed statistical analysis on customer data identifying key growth opportunities</li>
-                  <li>• Built data validation scripts ensuring 99.9% data accuracy across all business metrics</li>
-                  <li>• Created comprehensive documentation for data processes and analytical methodologies</li>
-                </ul>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
       {/* Contact Section */}
-      <section className="py-16 px-4 bg-muted/30">
+      <section id="contact" className="py-16 px-4 bg-muted/30">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-4xl font-serif font-bold mb-8 text-balance">Let's Build Something Amazing</h2>
           <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed text-pretty">

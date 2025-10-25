@@ -8,25 +8,26 @@ import { Progress } from "@/components/ui/progress"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  Mail,
-  Phone,
-  MapPin,
-  Github,
-  Linkedin,
-  ExternalLink,
-  Database,
+  Award,
+  Brain,
+  Briefcase,
   Cloud,
-  BarChart3,
   Cpu,
   Code,
-  Server,
-  Menu,
-  X,
-  Home,
-  User,
-  Briefcase,
+  Database,
+  ExternalLink,
   FolderOpen,
+  Home,
+  Mail,
+  MapPin,
+  Menu,
   MessageSquare,
+  Phone,
+  Server,
+  TrendingUp,
+  Users,
+  X,
+  BarChart3,
 } from "lucide-react"
 
 const projectDetails = {
@@ -98,7 +99,7 @@ WITH transaction_features AS (
     -- Location features
     ST_Distance(
       transaction_location, 
-      LAG(transaction_location) OVER (PARTITION BY user_id ORDER BY transaction_time)
+       সুবিধlag(transaction_location) OVER (PARTITION BY user_id ORDER BY transaction_time)
     ) as distance_from_last_transaction
     
   FROM transactions 
@@ -1137,118 +1138,800 @@ generate_risk_dashboard <- function(credit_results, market_results, operational_
 `,
     },
   },
+  "hr-data-platform": {
+    title: "Enterprise HR Data Platform",
+    problemStatement:
+      "The HR department managed employee data across 8 different HRIS and payroll systems (SAP SuccessFactors, Workday, ADP, local payroll systems), making it impossible to get a unified view of workforce analytics, ensure compliance with labor regulations, or generate accurate executive reports. Data inconsistencies, manual reconciliation processes, and lack of data governance led to reporting delays of up to 2 weeks and compliance risks.",
+    architecture: "/hr-data-platform-architecture-medallion-bronze-silv.jpg",
+    solution: {
+      sql: `-- HR Data Platform - Relational Schema Design
+-- Bronze Layer: Raw data ingestion from source systems
+
+CREATE SCHEMA bronze;
+CREATE SCHEMA silver;
+CREATE SCHEMA gold;
+
+-- Bronze: Raw employee data from multiple HRIS systems
+CREATE TABLE bronze.employee_raw (
+    source_system VARCHAR(50),
+    employee_id VARCHAR(100),
+    load_timestamp DATETIME2,
+    raw_data NVARCHAR(MAX), -- JSON payload
+    batch_id VARCHAR(50),
+    CONSTRAINT pk_employee_raw PRIMARY KEY (source_system, employee_id, load_timestamp)
+);
+
+-- Silver Layer: Cleaned and standardized data
+CREATE TABLE silver.employee_master (
+    employee_key INT IDENTITY(1,1) PRIMARY KEY,
+    employee_id VARCHAR(50) UNIQUE NOT NULL,
+    first_name NVARCHAR(100),
+    last_name NVARCHAR(100),
+    email VARCHAR(255),
+    hire_date DATE,
+    termination_date DATE,
+    employment_status VARCHAR(20),
+    job_title NVARCHAR(200),
+    department NVARCHAR(100),
+    cost_center VARCHAR(50),
+    manager_id VARCHAR(50),
+    location_code VARCHAR(20),
+    salary_grade VARCHAR(10),
+    -- Audit columns
+    source_system VARCHAR(50),
+    created_date DATETIME2 DEFAULT GETDATE(),
+    modified_date DATETIME2 DEFAULT GETDATE(),
+    data_quality_score DECIMAL(3,2),
+    is_active BIT DEFAULT 1,
+    CONSTRAINT fk_manager FOREIGN KEY (manager_id) REFERENCES silver.employee_master(employee_id)
+);
+
+CREATE TABLE silver.payroll_transactions (
+    payroll_key INT IDENTITY(1,1) PRIMARY KEY,
+    employee_id VARCHAR(50) NOT NULL,
+    pay_period_start DATE,
+    pay_period_end DATE,
+    pay_date DATE,
+    gross_pay DECIMAL(18,2),
+    net_pay DECIMAL(18,2),
+    tax_withheld DECIMAL(18,2),
+    benefits_deduction DECIMAL(18,2),
+    currency_code VARCHAR(3),
+    source_system VARCHAR(50),
+    created_date DATETIME2 DEFAULT GETDATE(),
+    CONSTRAINT fk_employee_payroll FOREIGN KEY (employee_id) 
+        REFERENCES silver.employee_master(employee_id)
+);
+
+-- Gold Layer: Business-ready analytics tables
+CREATE TABLE gold.workforce_analytics (
+    analytics_date DATE,
+    department NVARCHAR(100),
+    location_code VARCHAR(20),
+    headcount INT,
+    new_hires INT,
+    terminations INT,
+    avg_tenure_months DECIMAL(10,2),
+    avg_salary DECIMAL(18,2),
+    turnover_rate DECIMAL(5,2),
+    diversity_score DECIMAL(3,2),
+    engagement_score DECIMAL(3,2),
+    created_date DATETIME2 DEFAULT GETDATE(),
+    CONSTRAINT pk_workforce_analytics PRIMARY KEY (analytics_date, department, location_code)
+);
+
+-- Data Quality View
+CREATE VIEW gold.vw_data_quality_dashboard AS
+SELECT 
+    source_system,
+    COUNT(*) as total_records,
+    SUM(CASE WHEN email IS NULL OR email = '' THEN 1 ELSE 0 END) as missing_email,
+    SUM(CASE WHEN hire_date IS NULL THEN 1 ELSE 0 END) as missing_hire_date,
+    AVG(data_quality_score) as avg_quality_score,
+    MAX(modified_date) as last_updated
+FROM silver.employee_master
+GROUP BY source_system;
+
+-- Compliance Report: POPIA/GDPR Data Access Log
+CREATE TABLE gold.data_access_log (
+    log_id INT IDENTITY(1,1) PRIMARY KEY,
+    user_id VARCHAR(100),
+    employee_id_accessed VARCHAR(50),
+    access_timestamp DATETIME2,
+    access_type VARCHAR(50), -- READ, UPDATE, DELETE
+    data_fields_accessed NVARCHAR(500),
+    purpose VARCHAR(200),
+    ip_address VARCHAR(45),
+    CONSTRAINT fk_employee_access FOREIGN KEY (employee_id_accessed) 
+        REFERENCES silver.employee_master(employee_id)
+);`,
+      python: `# HR Data Platform - Python Automation & Orchestration
+import pandas as pd
+import pyodbc
+from azure.storage.blob import BlobServiceClient
+from azure.identity import DefaultAzureCredential
+import logging
+from datetime import datetime, timedelta
+import hashlib
+import json
+
+class HRDataPlatform:
+    """Enterprise HR Data Platform - ETL Orchestration"""
+    
+    def __init__(self):
+        self.credential = DefaultAzureCredential()
+        self.blob_client = BlobServiceClient(
+            account_url="https://hrdatalake.blob.core.windows.net",
+            credential=self.credential
+        )
+        self.sql_conn = self.get_sql_connection()
+        self.logger = self.setup_logging()
+    
+    def get_sql_connection(self):
+        """Connect to Azure SQL Database"""
+        conn_string = (
+            "Driver={ODBC Driver 18 for SQL Server};"
+            "Server=tcp:hr-data-platform.database.windows.net,1433;"
+            "Database=HRDataWarehouse;"
+            "Authentication=ActiveDirectoryMsi;"
+        )
+        return pyodbc.connect(conn_string)
+    
+    def extract_from_successfactors(self, extract_date):
+        """Extract employee data from SAP SuccessFactors API"""
+        self.logger.info(f"Extracting SuccessFactors data for {extract_date}")
+        
+        # API call to SuccessFactors OData API
+        api_url = "https://api.successfactors.com/odata/v2/User"
+        headers = {"Authorization": f"Bearer {self.get_sf_token()}"}
+        
+        response = requests.get(api_url, headers=headers, params={
+            "$filter": f"lastModifiedDateTime ge datetime'{extract_date}T00:00:00'",
+            "$select": "userId,firstName,lastName,email,hireDate,department,jobTitle"
+        })
+        
+        employees = response.json()['d']['results']
+        
+        # Store raw data in Bronze layer (Blob Storage)
+        self.store_bronze_data(employees, 'successfactors', extract_date)
+        
+        return pd.DataFrame(employees)
+    
+    def store_bronze_data(self, data, source_system, extract_date):
+        """Store raw data in Bronze layer (Azure Blob Storage)"""
+        container_client = self.blob_client.get_container_client("bronze")
+        
+        blob_path = f"{source_system}/{extract_date}/employees.json"
+        blob_client = container_client.get_blob_client(blob_path)
+        
+        blob_client.upload_blob(
+            json.dumps(data, default=str),
+            overwrite=True,
+            metadata={
+                'source_system': source_system,
+                'extract_date': extract_date,
+                'record_count': str(len(data))
+            }
+        )
+        
+        self.logger.info(f"Stored {len(data)} records in Bronze: {blob_path}")
+    
+    def transform_to_silver(self, df, source_system):
+        """Transform and standardize data for Silver layer"""
+        self.logger.info(f"Transforming {source_system} data to Silver layer")
+        
+        # Data cleaning and standardization
+        df_clean = df.copy()
+        
+        # Standardize column names
+        column_mapping = {
+            'userId': 'employee_id',
+            'firstName': 'first_name',
+            'lastName': 'last_name',
+            'hireDate': 'hire_date',
+            'jobTitle': 'job_title'
+        }
+        df_clean = df_clean.rename(columns=column_mapping)
+        
+        # Data quality checks
+        df_clean['email'] = df_clean['email'].str.lower().str.strip()
+        df_clean['data_quality_score'] = self.calculate_quality_score(df_clean)
+        
+        # Handle missing values
+        df_clean['department'] = df_clean['department'].fillna('Unknown')
+        df_clean['employment_status'] = 'Active'
+        
+        # Add audit columns
+        df_clean['source_system'] = source_system
+        df_clean['created_date'] = datetime.now()
+        df_clean['modified_date'] = datetime.now()
+        df_clean['is_active'] = 1
+        
+        # PII encryption for sensitive fields
+        df_clean['email_hash'] = df_clean['email'].apply(
+            lambda x: hashlib.sha256(x.encode()).hexdigest()
+        )
+        
+        return df_clean
+    
+    def calculate_quality_score(self, df):
+        """Calculate data quality score for each record"""
+        required_fields = ['employee_id', 'first_name', 'last_name', 'email', 'hire_date']
+        
+        quality_scores = []
+        for _, row in df.iterrows():
+            score = 0.0
+            for field in required_fields:
+                if pd.notna(row.get(field)) and row.get(field) != '':
+                    score += 0.2
+            
+            # Email validation
+            if pd.notna(row.get('email')) and '@' in str(row.get('email')):
+                score += 0.1
+            
+            # Date validation
+            if pd.notna(row.get('hire_date')):
+                try:
+                    hire_date = pd.to_datetime(row.get('hire_date'))
+                    if hire_date < datetime.now():
+                        score += 0.1
+                except:
+                    pass
+            
+            quality_scores.append(min(score, 1.0))
+        
+        return quality_scores
+    
+    def load_to_silver(self, df):
+        """Load transformed data to Silver layer (Azure SQL)"""
+        self.logger.info(f"Loading {len(df)} records to Silver layer")
+        
+        cursor = self.sql_conn.cursor()
+        
+        # Upsert logic (merge)
+        for _, row in df.iterrows():
+            cursor.execute("""
+                MERGE silver.employee_master AS target
+                USING (SELECT ? AS employee_id) AS source
+                ON target.employee_id = source.employee_id
+                WHEN MATCHED THEN
+                    UPDATE SET
+                        first_name = ?,
+                        last_name = ?,
+                        email = ?,
+                        hire_date = ?,
+                        job_title = ?,
+                        department = ?,
+                        modified_date = GETDATE(),
+                        data_quality_score = ?
+                WHEN NOT MATCHED THEN
+                    INSERT (employee_id, first_name, last_name, email, hire_date, 
+                            job_title, department, source_system, data_quality_score)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """, (
+                row['employee_id'],
+                row['first_name'], row['last_name'], row['email'],
+                row['hire_date'], row['job_title'], row['department'],
+                row['data_quality_score'],
+                row['employee_id'], row['first_name'], row['last_name'],
+                row['email'], row['hire_date'], row['job_title'],
+                row['department'], row['source_system'], row['data_quality_score']
+            ))
+        
+        self.sql_conn.commit()
+        self.logger.info("Silver layer load completed")
+    
+    def build_gold_analytics(self):
+        """Build Gold layer analytics tables"""
+        self.logger.info("Building Gold layer analytics")
+        
+        cursor = self.sql_conn.cursor()
+        
+        # Workforce analytics aggregation
+        cursor.execute("""
+            INSERT INTO gold.workforce_analytics
+            SELECT 
+                CAST(GETDATE() AS DATE) as analytics_date,
+                department,
+                location_code,
+                COUNT(*) as headcount,
+                SUM(CASE WHEN hire_date >= DATEADD(month, -1, GETDATE()) THEN 1 ELSE 0 END) as new_hires,
+                SUM(CASE WHEN termination_date >= DATEADD(month, -1, GETDATE()) THEN 1 ELSE 0 END) as terminations,
+                AVG(DATEDIFF(month, hire_date, COALESCE(termination_date, GETDATE()))) as avg_tenure_months,
+                0 as avg_salary, -- Calculated separately from payroll
+                CAST(SUM(CASE WHEN termination_date >= DATEADD(month, -1, GETDATE()) THEN 1 ELSE 0 END) AS FLOAT) / 
+                    NULLIF(COUNT(*), 0) * 100 as turnover_rate,
+                0 as diversity_score,
+                0 as engagement_score,
+                GETDATE() as created_date
+            FROM silver.employee_master
+            WHERE is_active = 1
+            GROUP BY department, location_code;
+        """)
+        
+        self.sql_conn.commit()
+        self.logger.info("Gold layer analytics completed")
+    
+    def run_daily_pipeline(self):
+        """Execute daily ETL pipeline"""
+        extract_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+        
+        try:
+            # Extract from multiple sources
+            sf_data = self.extract_from_successfactors(extract_date)
+            
+            # Transform to Silver
+            silver_data = self.transform_to_silver(sf_data, 'successfactors')
+            
+            # Load to Silver
+            self.load_to_silver(silver_data)
+            
+            # Build Gold analytics
+            self.build_gold_analytics()
+            
+            self.logger.info("Daily pipeline completed successfully")
+            
+        except Exception as e:
+            self.logger.error(f"Pipeline failed: {str(e)}")
+            raise
+
+# Azure Function trigger for daily execution
+def main(mytimer):
+    platform = HRDataPlatform()
+    platform.run_daily_pipeline()`,
+      alteryx: `<!-- Alteryx Workflow XML - HR Data Integration -->
+<!-- This represents an Alteryx workflow for HR data processing -->
+
+Alteryx Workflow: HR_Data_Integration_Master.yxmd
+
+WORKFLOW COMPONENTS:
+
+1. INPUT TOOLS:
+   - Input Data (1): SAP SuccessFactors ODBC Connection
+     * Connection: DSN=SuccessFactors_Prod
+     * Query: SELECT * FROM Employee WHERE LastModified >= DATEADD(day, -1, GETDATE())
+   
+   - Input Data (2): Workday REST API
+     * URL: https://api.workday.com/v1/employees
+     * Authentication: OAuth 2.0
+     * Headers: Authorization Bearer Token
+   
+   - Input Data (3): ADP Payroll CSV Files
+     * Directory: \\\\fileserver\\payroll\\exports\\
+     * File Pattern: ADP_Payroll_*.csv
+     * Wildcard: Use * for multiple files
+
+2. DATA PREPARATION:
+   - Select Tool: Standardize column names across sources
+     * Rename: EmpID → employee_id
+     * Rename: FirstName → first_name
+     * Rename: LastName → last_name
+     * Rename: EmailAddress → email
+   
+   - Data Cleansing Tool:
+     * Remove leading/trailing spaces
+     * Convert email to lowercase
+     * Replace NULL with 'Unknown' for department
+     * Remove special characters from employee_id
+   
+   - Formula Tool: Calculate data quality score
+     * Expression: 
+       IF IsNull([email]) THEN 0.0
+       ELSEIF Contains([email], '@') THEN 1.0
+       ELSE 0.5
+       ENDIF
+
+3. DATA QUALITY CHECKS:
+   - Filter Tool: Separate valid vs invalid records
+     * Valid: data_quality_score >= 0.7
+     * Invalid: data_quality_score < 0.7
+   
+   - Message Tool: Alert on data quality issues
+     * Condition: [Invalid_Records] > 100
+     * Message: "High number of invalid records detected"
+     * Priority: High
+
+4. DATA TRANSFORMATION:
+   - Join Tool: Merge employee and payroll data
+     * Join Type: Left Outer
+     * Join On: employee_id = employee_id
+     * Select: All fields from Employee, Salary fields from Payroll
+   
+   - Summarize Tool: Calculate department metrics
+     * Group By: department, location
+     * Sum: headcount
+     * Average: salary, tenure_months
+     * Count: new_hires, terminations
+
+5. COMPLIANCE & GOVERNANCE:
+   - Formula Tool: PII Masking
+     * Expression: Left([email], 3) + '***@' + Right([email], 10)
+     * Apply to: email field for non-authorized users
+   
+   - Append Fields: Add audit columns
+     * source_system = 'Alteryx'
+     * load_timestamp = DateTimeNow()
+     * batch_id = [Workflow_Name] + '_' + ToString(DateTimeNow())
+
+6. OUTPUT TOOLS:
+   - Output Data (1): Azure SQL - Bronze Layer
+     * Connection: Azure SQL Database
+     * Table: bronze.employee_raw
+     * Mode: Append
+     * Pre-SQL: TRUNCATE TABLE bronze.employee_raw_staging
+   
+   - Output Data (2): Azure SQL - Silver Layer
+     * Connection: Azure SQL Database
+     * Table: silver.employee_master
+     * Mode: Update/Insert (Upsert)
+     * Key Field: employee_id
+   
+   - Output Data (3): Azure Blob Storage
+     * Connection: Azure Blob Storage
+     * Container: hr-data-archive
+     * File: employee_extract_[YYYY-MM-DD].parquet
+     * Format: Parquet (compressed)
+
+7. WORKFLOW SCHEDULING:
+   - Alteryx Server Schedule:
+     * Frequency: Daily at 2:00 AM
+     * Retry: 3 attempts with 15-minute intervals
+     * Notification: Email on failure
+     * Priority: High
+
+8. ERROR HANDLING:
+   - Test Tool: Validate data before output
+     * Test: COUNT([employee_id]) > 0
+     * Test: MAX([data_quality_score]) >= 0.7
+   
+   - Email Tool: Send failure notifications
+     * To: data-engineering@company.com
+     * Subject: HR Data Pipeline Failed
+     * Body: Include error details and record counts
+
+WORKFLOW PERFORMANCE:
+- Average Runtime: 12 minutes
+- Records Processed: ~50,000 employees
+- Data Sources: 8 HRIS systems
+- Output Tables: 3 (Bronze, Silver, Gold)`,
+      powerbi: `// Power BI DAX Measures - HR Analytics Dashboard
+
+// ============================================
+// WORKFORCE METRICS
+// ============================================
+
+Total Headcount = 
+CALCULATE(
+    COUNTROWS('Employee'),
+    'Employee'[employment_status] = "Active"
+)
+
+Headcount Previous Month = 
+CALCULATE(
+    [Total Headcount],
+    DATEADD('Date'[Date], -1, MONTH)
+)
+
+Headcount Change = 
+[Total Headcount] - [Headcount Previous Month]
+
+Headcount Change % = 
+DIVIDE(
+    [Headcount Change],
+    [Headcount Previous Month],
+    0
+)
+
+// ============================================
+// TURNOVER METRICS
+// ============================================
+
+Terminations MTD = 
+CALCULATE(
+    COUNTROWS('Employee'),
+    'Employee'[termination_date] >= STARTOFMONTH('Date'[Date]),
+    'Employee'[termination_date] <= ENDOFMONTH('Date'[Date])
+)
+
+Turnover Rate = 
+VAR AvgHeadcount = 
+    CALCULATE(
+        AVERAGE('Workforce Analytics'[headcount]),
+        DATESINPERIOD('Date'[Date], MAX('Date'[Date]), -12, MONTH)
+    )
+VAR Terminations = 
+    CALCULATE(
+        SUM('Workforce Analytics'[terminations]),
+        DATESINPERIOD('Date'[Date], MAX('Date'[Date]), -12, MONTH)
+    )
+RETURN
+    DIVIDE(Terminations, AvgHeadcount, 0) * 100
+
+Voluntary Turnover Rate = 
+CALCULATE(
+    [Turnover Rate],
+    'Employee'[termination_reason] IN {"Resignation", "Retirement"}
+)
+
+// ============================================
+// HIRING METRICS
+// ============================================
+
+New Hires MTD = 
+CALCULATE(
+    COUNTROWS('Employee'),
+    'Employee'[hire_date] >= STARTOFMONTH('Date'[Date]),
+    'Employee'[hire_date] <= ENDOFMONTH('Date'[Date])
+)
+
+Time to Fill (Days) = 
+AVERAGE(
+    DATEDIFF(
+        'Requisition'[posted_date],
+        'Requisition'[filled_date],
+        DAY
+    )
+)
+
+Hiring Velocity = 
+DIVIDE(
+    [New Hires MTD],
+    DISTINCTCOUNT('Requisition'[requisition_id]),
+    0
+)
+
+// ============================================
+// COMPENSATION METRICS
+// ============================================
+
+Total Compensation = 
+SUMX(
+    'Employee',
+    'Employee'[base_salary] + 
+    'Employee'[bonus] + 
+    'Employee'[benefits_value]
+)
+
+Average Salary by Department = 
+CALCULATE(
+    AVERAGE('Employee'[base_salary]),
+    ALLEXCEPT('Employee', 'Employee'[department])
+)
+
+Compensation Ratio = 
+DIVIDE(
+    'Employee'[base_salary],
+    [Average Salary by Department],
+    0
+)
+
+Salary Budget Variance = 
+VAR ActualSalary = [Total Compensation]
+VAR BudgetedSalary = SUM('Budget'[salary_budget])
+RETURN
+    ActualSalary - BudgetedSalary
+
+// ============================================
+// DIVERSITY METRICS
+// ============================================
+
+Gender Diversity % = 
+VAR FemaleCount = 
+    CALCULATE(
+        COUNTROWS('Employee'),
+        'Employee'[gender] = "Female"
+    )
+VAR TotalCount = [Total Headcount]
+RETURN
+    DIVIDE(FemaleCount, TotalCount, 0) * 100
+
+Diversity Index = 
+VAR Categories = 
+    DISTINCTCOUNT('Employee'[diversity_category])
+VAR MaxCategories = 10
+RETURN
+    DIVIDE(Categories, MaxCategories, 0) * 100
+
+// ============================================
+// TENURE & RETENTION
+// ============================================
+
+Average Tenure (Years) = 
+AVERAGEX(
+    'Employee',
+    DATEDIFF(
+        'Employee'[hire_date],
+        IF(
+            ISBLANK('Employee'[termination_date]),
+            TODAY(),
+            'Employee'[termination_date]
+        ),
+        DAY
+    ) / 365.25
+)
+
+Retention Rate = 
+VAR StartHeadcount = [Headcount Previous Month]
+VAR EndHeadcount = [Total Headcount]
+VAR Terminations = [Terminations MTD]
+RETURN
+    DIVIDE(
+        EndHeadcount,
+        StartHeadcount + [New Hires MTD],
+        0
+    ) * 100
+
+// ============================================
+// COMPLIANCE METRICS
+// ============================================
+
+Data Quality Score = 
+AVERAGE('Employee'[data_quality_score]) * 100
+
+Records Missing Critical Data = 
+CALCULATE(
+    COUNTROWS('Employee'),
+    OR(
+        ISBLANK('Employee'[email]),
+        ISBLANK('Employee'[hire_date])
+    )
+)
+
+POPIA Compliance % = 
+VAR TotalRecords = COUNTROWS('Employee')
+VAR CompliantRecords = 
+    CALCULATE(
+        COUNTROWS('Employee'),
+        'Employee'[consent_obtained] = TRUE,
+        'Employee'[data_classification] <> BLANK()
+    )
+RETURN
+    DIVIDE(CompliantRecords, TotalRecords, 0) * 100
+
+// ============================================
+// PREDICTIVE ANALYTICS
+// ============================================
+
+Flight Risk Score = 
+VAR TenureScore = 
+    IF([Average Tenure (Years)] < 2, 0.3, 0)
+VAR EngagementScore = 
+    IF('Employee'[engagement_score] < 3, 0.4, 0)
+VAR SalaryScore = 
+    IF([Compensation Ratio] < 0.9, 0.3, 0)
+RETURN
+    TenureScore + EngagementScore + SalaryScore
+
+Employees at Risk = 
+CALCULATE(
+    COUNTROWS('Employee'),
+    [Flight Risk Score] >= 0.6
+)`,
+    },
+  },
 }
 
 export default function Portfolio() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null)
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [isResumeOpen, setIsResumeOpen] = useState(false)
 
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId)
     if (element) {
       element.scrollIntoView({ behavior: "smooth" })
-      setIsMobileMenuOpen(false) // Close mobile menu after navigation
+      setMobileMenuOpen(false) // Close mobile menu after navigation
     }
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b">
-        <div className="max-w-6xl mx-auto px-4 py-3">
+    <div className="min-h-screen bg-background text-foreground">
+      <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b">
+        <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="font-serif font-bold text-xl text-primary">SE</div>
+            <div className="flex items-center gap-2">
+              <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold">
+                SE
+              </div>
+              <span className="font-serif font-bold text-xl hidden sm:inline">Stanton Edwards</span>
+            </div>
 
             {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center space-x-8">
+            <div className="hidden md:flex items-center gap-6">
               <button
                 onClick={() => scrollToSection("home")}
-                className="text-sm font-medium hover:text-primary transition-colors"
+                className="flex items-center gap-2 text-sm hover:text-primary transition-colors"
               >
+                <Home className="h-4 w-4" />
                 Home
               </button>
               <button
                 onClick={() => scrollToSection("skills")}
-                className="text-sm font-medium hover:text-primary transition-colors"
+                className="flex items-center gap-2 text-sm hover:text-primary transition-colors"
               >
+                <Award className="h-4 w-4" />
                 Skills
               </button>
               <button
                 onClick={() => scrollToSection("experience")}
-                className="text-sm font-medium hover:text-primary transition-colors"
+                className="flex items-center gap-2 text-sm hover:text-primary transition-colors"
               >
+                <Briefcase className="h-4 w-4" />
                 Experience
               </button>
               <button
                 onClick={() => scrollToSection("projects")}
-                className="text-sm font-medium hover:text-primary transition-colors"
+                className="flex items-center gap-2 text-sm hover:text-primary transition-colors"
               >
+                <FolderOpen className="h-4 w-4" />
                 Projects
               </button>
               <button
                 onClick={() => scrollToSection("contact")}
-                className="text-sm font-medium hover:text-primary transition-colors"
+                className="flex items-center gap-2 text-sm hover:text-primary transition-colors"
               >
+                <MessageSquare className="h-4 w-4" />
                 Contact
               </button>
             </div>
 
             {/* Mobile Menu Button */}
             <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="md:hidden p-2 hover:bg-muted rounded-lg transition-colors"
-              aria-label="Toggle menu"
             >
-              {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
           </div>
 
-          {/* Mobile Navigation Menu */}
-          {isMobileMenuOpen && (
-            <div className="md:hidden mt-4 pb-4 border-t">
-              <div className="flex flex-col space-y-3 pt-4">
-                <button
-                  onClick={() => scrollToSection("home")}
-                  className="flex items-center space-x-3 text-sm font-medium hover:text-primary transition-colors py-2"
-                >
-                  <Home className="h-4 w-4" />
-                  <span>Home</span>
-                </button>
-                <button
-                  onClick={() => scrollToSection("skills")}
-                  className="flex items-center space-x-3 text-sm font-medium hover:text-primary transition-colors py-2"
-                >
-                  <User className="h-4 w-4" />
-                  <span>Skills</span>
-                </button>
-                <button
-                  onClick={() => scrollToSection("experience")}
-                  className="flex items-center space-x-3 text-sm font-medium hover:text-primary transition-colors py-2"
-                >
-                  <Briefcase className="h-4 w-4" />
-                  <span>Experience</span>
-                </button>
-                <button
-                  onClick={() => scrollToSection("projects")}
-                  className="flex items-center space-x-3 text-sm font-medium hover:text-primary transition-colors py-2"
-                >
-                  <FolderOpen className="h-4 w-4" />
-                  <span>Projects</span>
-                </button>
-                <button
-                  onClick={() => scrollToSection("contact")}
-                  className="flex items-center space-x-3 text-sm font-medium hover:text-primary transition-colors py-2"
-                >
-                  <MessageSquare className="h-4 w-4" />
-                  <span>Contact</span>
-                </button>
-              </div>
+          {/* Mobile Navigation */}
+          {mobileMenuOpen && (
+            <div className="md:hidden mt-4 pb-4 space-y-2">
+              <button
+                onClick={() => scrollToSection("home")}
+                className="flex items-center gap-3 w-full px-4 py-3 hover:bg-muted rounded-lg transition-colors"
+              >
+                <Home className="h-5 w-5" />
+                <span>Home</span>
+              </button>
+              <button
+                onClick={() => scrollToSection("skills")}
+                className="flex items-center gap-3 w-full px-4 py-3 hover:bg-muted rounded-lg transition-colors"
+              >
+                <Award className="h-5 w-5" />
+                <span>Skills</span>
+              </button>
+              <button
+                onClick={() => scrollToSection("experience")}
+                className="flex items-center gap-3 w-full px-4 py-3 hover:bg-muted rounded-lg transition-colors"
+              >
+                <Briefcase className="h-5 w-5" />
+                <span>Experience</span>
+              </button>
+              <button
+                onClick={() => scrollToSection("projects")}
+                className="flex items-center gap-3 w-full px-4 py-3 hover:bg-muted rounded-lg transition-colors"
+              >
+                <FolderOpen className="h-5 w-5" />
+                <span>Projects</span>
+              </button>
+              <button
+                onClick={() => scrollToSection("contact")}
+                className="flex items-center gap-3 w-full px-4 py-3 hover:bg-muted rounded-lg transition-colors"
+              >
+                <MessageSquare className="h-5 w-5" />
+                <span>Contact</span>
+              </button>
             </div>
           )}
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section id="home" className="relative py-20 px-4 text-center bg-gradient-to-br from-muted to-card pt-32">
+      <section
+        id="home"
+        className="min-h-screen flex items-center justify-center px-4 pt-20 relative py-20 px-4 text-center bg-gradient-to-br from-muted to-card pt-32"
+      >
         <div className="max-w-4xl mx-auto">
           <div className="mb-8">
             <img
@@ -1257,9 +1940,7 @@ export default function Portfolio() {
               className="w-32 h-32 md:w-40 md:h-40 rounded-full mx-auto object-cover object-[center_10%] border-4 border-primary/20 shadow-lg"
             />
           </div>
-          <h1 className="text-5xl md:text-7xl font-serif font-bold text-foreground mb-6 text-balance">
-            Stanton Edwards
-          </h1>
+          <h1 className="text-5xl md:text-7xl font-serif font-bold mb-6 text-balance">Stanton Edwards</h1>
           <p className="text-xl md:text-2xl text-muted-foreground mb-8 text-pretty">
             Senior Data Engineer | Big Data Enthusiast | Analytics Expert
           </p>
@@ -1268,11 +1949,13 @@ export default function Portfolio() {
             and cutting-edge big data technologies.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" className="bg-primary hover:bg-primary/90">
-              <Mail className="mr-2 h-4 w-4" />
-              Get In Touch
+            <Button size="lg" className="bg-primary hover:bg-primary/90" asChild>
+              <a href="#contact">
+                <Mail className="mr-2 h-4 w-4" />
+                Get In Touch
+              </a>
             </Button>
-            <Button variant="outline" size="lg">
+            <Button variant="outline" size="lg" onClick={() => setIsResumeOpen(true)}>
               <ExternalLink className="mr-2 h-4 w-4" />
               View Resume
             </Button>
@@ -1285,6 +1968,74 @@ export default function Portfolio() {
         <div className="max-w-6xl mx-auto">
           <h2 className="text-4xl font-serif font-bold text-center mb-12 text-balance">Technical Expertise</h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <Brain className="h-8 w-8 text-primary" />
+                  <CardTitle>AI & Machine Learning</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex justify-between mb-2">
+                      <span>Machine Learning & Deep Learning</span>
+                      <span className="text-sm text-muted-foreground">95%</span>
+                    </div>
+                    <Progress value={95} className="h-2" />
+                  </div>
+                  <div>
+                    <div className="flex justify-between mb-2">
+                      <span>Natural Language Processing</span>
+                      <span className="text-sm text-muted-foreground">90%</span>
+                    </div>
+                    <Progress value={90} className="h-2" />
+                  </div>
+                  <div>
+                    <div className="flex justify-between mb-2">
+                      <span>Predictive Analytics</span>
+                      <span className="text-sm text-muted-foreground">93%</span>
+                    </div>
+                    <Progress value={93} className="h-2" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <TrendingUp className="h-8 w-8 text-primary" />
+                  <CardTitle>Analytics & Visualization</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex justify-between mb-2">
+                      <span>Tableau & Looker</span>
+                      <span className="text-sm text-muted-foreground">95%</span>
+                    </div>
+                    <Progress value={95} className="h-2" />
+                  </div>
+                  <div>
+                    <div className="flex justify-between mb-2">
+                      <span>Advanced Excel & Power BI</span>
+                      <span className="text-sm text-muted-foreground">92%</span>
+                    </div>
+                    <Progress value={92} className="h-2" />
+                  </div>
+                  <div>
+                    <div className="flex justify-between mb-2">
+                      <span>Statistical Analysis (SAS/R)</span>
+                      <span className="text-sm text-muted-foreground">90%</span>
+                    </div>
+                    <Progress value={90} className="h-2" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <div className="flex items-center gap-3">
@@ -1310,7 +2061,7 @@ export default function Portfolio() {
                   </div>
                   <div>
                     <div className="flex justify-between mb-2">
-                      <span>Apache Kafka</span>
+                      <span>Real-time Data Processing</span>
                       <span className="text-sm text-muted-foreground">88%</span>
                     </div>
                     <Progress value={88} className="h-2" />
@@ -1323,31 +2074,31 @@ export default function Portfolio() {
               <CardHeader>
                 <div className="flex items-center gap-3">
                   <Cloud className="h-8 w-8 text-primary" />
-                  <CardTitle>Cloud Platforms</CardTitle>
+                  <CardTitle>Cloud Computing</CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div>
                     <div className="flex justify-between mb-2">
-                      <span>AWS (EC2, EMR, Redshift)</span>
+                      <span>AWS (EC2, EMR, Redshift, SageMaker)</span>
                       <span className="text-sm text-muted-foreground">92%</span>
                     </div>
                     <Progress value={92} className="h-2" />
                   </div>
                   <div>
                     <div className="flex justify-between mb-2">
-                      <span>Data Pipeline Tools</span>
-                      <span className="text-sm text-muted-foreground">85%</span>
+                      <span>Azure ML & Data Services</span>
+                      <span className="text-sm text-muted-foreground">88%</span>
                     </div>
-                    <Progress value={85} className="h-2" />
+                    <Progress value={88} className="h-2" />
                   </div>
                   <div>
                     <div className="flex justify-between mb-2">
-                      <span>Stream Processing</span>
-                      <span className="text-sm text-muted-foreground">87%</span>
+                      <span>GCP BigQuery & AI Platform</span>
+                      <span className="text-sm text-muted-foreground">85%</span>
                     </div>
-                    <Progress value={87} className="h-2" />
+                    <Progress value={85} className="h-2" />
                   </div>
                 </div>
               </CardContent>
@@ -1364,24 +2115,58 @@ export default function Portfolio() {
                 <div className="space-y-4">
                   <div>
                     <div className="flex justify-between mb-2">
-                      <span>Python</span>
+                      <span>Python (Pandas, NumPy, Scikit-learn)</span>
                       <span className="text-sm text-muted-foreground">95%</span>
                     </div>
                     <Progress value={95} className="h-2" />
                   </div>
                   <div>
                     <div className="flex justify-between mb-2">
-                      <span>SQL</span>
+                      <span>R (Statistical Modeling)</span>
+                      <span className="text-sm text-muted-foreground">90%</span>
+                    </div>
+                    <Progress value={90} className="h-2" />
+                  </div>
+                  <div>
+                    <div className="flex justify-between mb-2">
+                      <span>SQL & SAS</span>
                       <span className="text-sm text-muted-foreground">93%</span>
                     </div>
                     <Progress value={93} className="h-2" />
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <Users className="h-8 w-8 text-primary" />
+                  <CardTitle>Leadership & Strategy</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
                   <div>
                     <div className="flex justify-between mb-2">
-                      <span>Scala</span>
-                      <span className="text-sm text-muted-foreground">80%</span>
+                      <span>Team Leadership & Mentoring</span>
+                      <span className="text-sm text-muted-foreground">95%</span>
                     </div>
-                    <Progress value={80} className="h-2" />
+                    <Progress value={95} className="h-2" />
+                  </div>
+                  <div>
+                    <div className="flex justify-between mb-2">
+                      <span>Analytics Strategy Development</span>
+                      <span className="text-sm text-muted-foreground">92%</span>
+                    </div>
+                    <Progress value={92} className="h-2" />
+                  </div>
+                  <div>
+                    <div className="flex justify-between mb-2">
+                      <span>Stakeholder Management</span>
+                      <span className="text-sm text-muted-foreground">90%</span>
+                    </div>
+                    <Progress value={90} className="h-2" />
                   </div>
                 </div>
               </CardContent>
@@ -1395,30 +2180,47 @@ export default function Portfolio() {
         <div className="max-w-4xl mx-auto">
           <h2 className="text-4xl font-serif font-bold text-center mb-12 text-balance">Professional Experience</h2>
           <div className="space-y-8">
-            <Card>
+            <Card className="border-2 border-primary">
               <CardHeader>
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
-                    <CardTitle className="text-xl">Senior Data Engineer</CardTitle>
-                    <CardDescription className="text-base">TechCorp Solutions • 2021 - Present</CardDescription>
+                    <CardTitle className="text-xl">Head of Data Analytics & AI</CardTitle>
+                    <CardDescription className="text-base">
+                      Standard Bank • Insurance & Asset Management • Johannesburg
+                    </CardDescription>
                   </div>
-                  <Badge variant="outline" className="w-fit">
-                    Current Role
-                  </Badge>
+                  <Badge className="w-fit bg-primary">Current Role</Badge>
                 </div>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   <li>
-                    • Led the design and implementation of a multi-petabyte data lake on AWS S3 with automated data
-                    governance
-                  </li>
-                  <li>• Optimized Spark jobs reducing processing time by 70% and infrastructure costs by 45%</li>
-                  <li>
-                    • Mentored a team of 5 junior engineers and established best practices for data pipeline development
+                    • Lead a team of 25+ data scientists, analysts, and ML engineers across advanced analytics, AI/ML,
+                    and business intelligence functions
                   </li>
                   <li>
-                    • Implemented real-time streaming analytics processing 50M+ events daily with sub-second latency
+                    • Developed and executed enterprise analytics strategy aligned with Standard Bank Group's digital
+                    transformation, delivering R150M+ in measurable business value
+                  </li>
+                  <li>
+                    • Built best-in-class customer insights and personalization platform using ML/NLP, increasing
+                    customer retention by 28% and cross-sell conversion by 35%
+                  </li>
+                  <li>
+                    • Implemented real-time risk analytics and automated decision-making systems processing 5M+
+                    transactions daily with 99.2% accuracy
+                  </li>
+                  <li>
+                    • Established AI ethics framework and governance policies ensuring fairness, transparency, and POPIA
+                    compliance across all ML models
+                  </li>
+                  <li>
+                    • Championed data-driven culture through executive dashboards (Tableau/Looker) and self-service
+                    analytics, enabling 500+ business users
+                  </li>
+                  <li>
+                    • Led predictive analytics initiatives for insurance underwriting and claims optimization, reducing
+                    loss ratios by 18% and improving operational efficiency by 40%
                   </li>
                 </ul>
               </CardContent>
@@ -1428,44 +2230,92 @@ export default function Portfolio() {
               <CardHeader>
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
-                    <CardTitle className="text-xl">Data Engineer</CardTitle>
-                    <CardDescription className="text-base">DataFlow Analytics • 2019 - 2021</CardDescription>
+                    <CardTitle className="text-xl">Solutions Architect - Data & Analytics</CardTitle>
+                    <CardDescription className="text-base">
+                      Standard Bank • Personal & Private Banking • Johannesburg
+                    </CardDescription>
                   </div>
                   <Badge variant="outline" className="w-fit">
-                    2 Years
+                    2022 - 2024
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li>
+                    • Designed scalable, secure, and high-performance data solutions aligned with business requirements
+                    and digital transformation initiatives
+                  </li>
+                  <li>
+                    • Architected cloud-native data solutions across Azure, AWS, and GCP, implementing data lakes,
+                    warehouses, and lakehouses
+                  </li>
+                  <li>
+                    • Developed conceptual, logical, and physical data models ensuring data consistency, quality, and
+                    lineage across enterprise systems
+                  </li>
+                  <li>
+                    • Embedded data governance principles and ensured compliance with POPIA and GDPR regulations through
+                    robust security controls
+                  </li>
+                  <li>
+                    • Led technical architecture reviews and mentored data engineering teams on best practices using
+                    TOGAF frameworks
+                  </li>
+                </ul>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-xl">Senior Data Engineer & Analytics Lead</CardTitle>
+                    <CardDescription className="text-base">TechCorp Solutions • 2019 - 2022</CardDescription>
+                  </div>
+                  <Badge variant="outline" className="w-fit">
+                    3 Years
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li>
+                    • Led analytics team of 8 engineers delivering advanced analytics solutions and ML model deployment
+                  </li>
+                  <li>
+                    • Built customer segmentation and propensity models using Python/R, driving 45% improvement in
+                    marketing campaign ROI
+                  </li>
+                  <li>• Optimized Spark jobs reducing processing time by 70% and infrastructure costs by 45%</li>
+                  <li>
+                    • Implemented real-time streaming analytics processing 50M+ events daily with sub-second latency
+                  </li>
+                  <li>• Established data quality frameworks and automated testing, reducing data incidents by 85%</li>
+                </ul>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-xl">Data Engineer & Business Analyst</CardTitle>
+                    <CardDescription className="text-base">DataFlow Analytics • 2016 - 2019</CardDescription>
+                  </div>
+                  <Badge variant="outline" className="w-fit">
+                    3 Years
                   </Badge>
                 </div>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   <li>• Built and maintained ETL pipelines processing 100GB+ daily using Apache Airflow and Python</li>
+                  <li>• Developed statistical models in R/SAS for customer behavior analysis and churn prediction</li>
                   <li>
-                    • Migrated legacy data warehouse to cloud-native architecture improving query performance by 10x
+                    • Created executive dashboards in Tableau combining complex data signals into actionable insights
                   </li>
-                  <li>• Developed automated data quality monitoring reducing data incidents by 80%</li>
                   <li>• Collaborated with data scientists to productionize ML models serving 1M+ predictions daily</li>
-                </ul>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-xl">Junior Data Analyst</CardTitle>
-                    <CardDescription className="text-base">StartupTech Inc • 2017 - 2019</CardDescription>
-                  </div>
-                  <Badge variant="outline" className="w-fit">
-                    2 Years
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li>• Developed automated reporting dashboards using Tableau and SQL reducing manual work by 90%</li>
-                  <li>• Performed statistical analysis on customer data identifying key growth opportunities</li>
-                  <li>• Built data validation scripts ensuring 99.9% data accuracy across all business metrics</li>
-                  <li>• Created comprehensive documentation for data processes and analytical methodologies</li>
                 </ul>
               </CardContent>
             </Card>
@@ -2137,58 +2987,241 @@ export default function Portfolio() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* HR Data Platform Project */}
+            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-xl mb-2">Enterprise HR Data Platform</CardTitle>
+                    <CardDescription className="text-base">
+                      Developed a unified platform for workforce analytics, compliance, and reporting
+                    </CardDescription>
+                  </div>
+                  <Database className="h-8 w-8 text-accent flex-shrink-0" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Built a Medallion architecture data platform on Azure Data Lake and SQL DW, integrating data from 8+
+                    HRIS systems. Enabled accurate workforce analytics, ensured compliance, and automated executive
+                    reporting, reducing delays from 2 weeks to 1 day.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">Azure Data Lake</Badge>
+                    <Badge variant="secondary">Azure SQL DW</Badge>
+                    <Badge variant="secondary">Python</Badge>
+                    <Badge variant="secondary">Alteryx</Badge>
+                    <Badge variant="secondary">Power BI</Badge>
+                  </div>
+                  <div className="pt-2">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <ExternalLink className="mr-2 h-3 w-3" />
+                          View Details
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle className="text-2xl font-serif">
+                            {projectDetails["hr-data-platform"].title}
+                          </DialogTitle>
+                        </DialogHeader>
+                        <Tabs defaultValue="problem" className="w-full">
+                          <TabsList className="grid w-full grid-cols-4">
+                            <TabsTrigger value="problem">Problem</TabsTrigger>
+                            <TabsTrigger value="architecture">Architecture</TabsTrigger>
+                            <TabsTrigger value="solution">Solution</TabsTrigger>
+                            <TabsTrigger value="code">Code</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="problem" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Problem Statement</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <p className="text-muted-foreground leading-relaxed">
+                                  {projectDetails["hr-data-platform"].problemStatement}
+                                </p>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="architecture" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>System Architecture</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <img
+                                  src={projectDetails["hr-data-platform"].architecture || "/placeholder.svg"}
+                                  alt="HR Data Platform Architecture"
+                                  className="w-full rounded-lg border"
+                                />
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="solution" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Technical Solution</CardTitle>
+                              </CardHeader>
+                              <CardContent className="space-y-4">
+                                <div className="grid md:grid-cols-2 gap-4">
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Key Components:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• Medallion architecture (Bronze, Silver, Gold)</li>
+                                      <li>• Azure Data Lake Storage Gen2</li>
+                                      <li>• Azure Synapse Analytics / SQL DW</li>
+                                      <li>• Python for ETL orchestration & scripting</li>
+                                      <li>• Alteryx for complex transformations</li>
+                                      <li>• Power BI for executive dashboards</li>
+                                    </ul>
+                                  </div>
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Results Achieved:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• Reduced reporting delays from 2 weeks to 1 day</li>
+                                      <li>• Unified view of 100% of workforce data</li>
+                                      <li>• Improved compliance with labor regulations</li>
+                                      <li>• 30% reduction in manual data reconciliation effort</li>
+                                      <li>• Enabled advanced workforce analytics capabilities</li>
+                                    </ul>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="code" className="space-y-4">
+                            <Tabs defaultValue="sql" className="w-full">
+                              <TabsList>
+                                <TabsTrigger value="sql">SQL</TabsTrigger>
+                                <TabsTrigger value="python">Python</TabsTrigger>
+                                <TabsTrigger value="alteryx">Alteryx</TabsTrigger>
+                                <TabsTrigger value="powerbi">Power BI</TabsTrigger>
+                              </TabsList>
+                              <TabsContent value="sql">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <Database className="h-5 w-5" />
+                                      SQL - Medallion Architecture Schema
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                      <code>{projectDetails["hr-data-platform"].solution.sql}</code>
+                                    </pre>
+                                  </CardContent>
+                                </Card>
+                              </TabsContent>
+                              <TabsContent value="python">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <Code className="h-5 w-5" />
+                                      Python - ETL Orchestration & Automation
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                      <code>{projectDetails["hr-data-platform"].solution.python}</code>
+                                    </pre>
+                                  </CardContent>
+                                </Card>
+                              </TabsContent>
+                              <TabsContent value="alteryx">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <Server className="h-5 w-5" />
+                                      Alteryx - Data Integration Workflow
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                      <code>{projectDetails["hr-data-platform"].solution.alteryx}</code>
+                                    </pre>
+                                  </CardContent>
+                                </Card>
+                              </TabsContent>
+                              <TabsContent value="powerbi">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <BarChart3 className="h-5 w-5" />
+                                      Power BI - DAX Measures for Analytics
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                      <code>{projectDetails["hr-data-platform"].solution.powerbi}</code>
+                                    </pre>
+                                  </CardContent>
+                                </Card>
+                              </TabsContent>
+                            </Tabs>
+                          </TabsContent>
+                        </Tabs>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>
 
       {/* Contact Section */}
-      <section id="contact" className="py-16 px-4 bg-muted/30">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-4xl font-serif font-bold mb-8 text-balance">Let's Build Something Amazing</h2>
-          <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed text-pretty">
-            Ready to transform your data challenges into competitive advantages? Let's discuss how we can leverage big
-            data technologies to drive your business forward.
-          </p>
-
-          <div className="grid md:grid-cols-3 gap-6 mb-8">
-            <Card className="text-center">
-              <CardContent className="pt-6">
-                <Mail className="h-8 w-8 text-primary mx-auto mb-3" />
-                <h3 className="font-semibold mb-2">Email</h3>
-                <p className="text-sm text-muted-foreground">stanton.edwards@email.com</p>
+      <section id="contact" className="py-16 px-4">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-4xl font-serif font-bold text-center mb-12 text-balance">Get In Touch</h2>
+          <div className="grid md:grid-cols-3 gap-6">
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <Mail className="h-6 w-6 text-primary" />
+                  <CardTitle className="text-lg">Email</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <a
+                  href="mailto:stanton.edwards@outlook.com"
+                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                >
+                  stanton.edwards@outlook.com
+                </a>
               </CardContent>
             </Card>
 
-            <Card className="text-center">
-              <CardContent className="pt-6">
-                <Phone className="h-8 w-8 text-primary mx-auto mb-3" />
-                <h3 className="font-semibold mb-2">Phone</h3>
-                <p className="text-sm text-muted-foreground">+1 (555) 123-4567</p>
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <Phone className="h-6 w-6 text-primary" />
+                  <CardTitle className="text-lg">Phone</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <a href="tel:0798810997" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                  079 881 0997
+                </a>
               </CardContent>
             </Card>
 
-            <Card className="text-center">
-              <CardContent className="pt-6">
-                <MapPin className="h-8 w-8 text-primary mx-auto mb-3" />
-                <h3 className="font-semibold mb-2">Location</h3>
-                <p className="text-sm text-muted-foreground">San Francisco, CA</p>
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <MapPin className="h-6 w-6 text-primary" />
+                  <CardTitle className="text-lg">Location</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">Johannesburg, South Africa</p>
               </CardContent>
             </Card>
-          </div>
-
-          <div className="flex justify-center gap-4">
-            <Button size="lg" className="bg-primary hover:bg-primary/90">
-              <Mail className="mr-2 h-4 w-4" />
-              Send Message
-            </Button>
-            <Button variant="outline" size="lg">
-              <Github className="mr-2 h-4 w-4" />
-              GitHub
-            </Button>
-            <Button variant="outline" size="lg">
-              <Linkedin className="mr-2 h-4 w-4" />
-              LinkedIn
-            </Button>
           </div>
         </div>
       </section>
@@ -2201,6 +3234,282 @@ export default function Portfolio() {
           </p>
         </div>
       </footer>
+
+      <Dialog open={isResumeOpen} onOpenChange={setIsResumeOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-3xl font-serif">Resume - Stanton Edwards</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 print:space-y-4">
+            {/* Contact Information */}
+            <div className="border-b pb-4">
+              <h2 className="text-2xl font-serif font-bold mb-2">Contact Information</h2>
+              <div className="grid md:grid-cols-3 gap-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-primary" />
+                  <span>stanton.edwards@outlook.com</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-primary" />
+                  <span>079 881 0997</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-primary" />
+                  <span>Johannesburg, South Africa</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Professional Summary */}
+            <div className="border-b pb-4">
+              <h2 className="text-2xl font-serif font-bold mb-3">Professional Summary</h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Accomplished data analytics and AI leader with 10+ years of experience driving digital transformation
+                through advanced analytics, machine learning, and big data technologies. Proven track record of building
+                and leading high-performing teams, delivering R150M+ in measurable business value, and implementing
+                enterprise-scale data solutions. Expert in customer insights, predictive analytics, real-time
+                processing, and AI ethics. Strong background in cloud computing (AWS, Azure, GCP), statistical analysis
+                (Python, R, SAS), and data visualization (Tableau, Looker). Passionate about leveraging data as a
+                strategic asset to drive business outcomes and innovation.
+              </p>
+            </div>
+
+            {/* Professional Experience */}
+            <div className="border-b pb-4">
+              <h2 className="text-2xl font-serif font-bold mb-3">Professional Experience</h2>
+              <div className="space-y-4">
+                {/* Current Role */}
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h3 className="font-bold text-lg">Head of Data Analytics & AI</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Standard Bank - Insurance & Asset Management, Johannesburg
+                      </p>
+                    </div>
+                    <Badge className="bg-primary">Current</Badge>
+                  </div>
+                  <ul className="text-sm text-muted-foreground space-y-1 ml-4 list-disc">
+                    <li>
+                      Lead team of 25+ data scientists, analysts, and ML engineers across advanced analytics and AI/ML
+                      functions
+                    </li>
+                    <li>
+                      Developed enterprise analytics strategy delivering R150M+ in measurable business value through
+                      customer insights and risk analytics
+                    </li>
+                    <li>
+                      Built customer personalization platform using ML/NLP, increasing retention by 28% and cross-sell
+                      conversion by 35%
+                    </li>
+                    <li>Implemented real-time risk analytics processing 5M+ transactions daily with 99.2% accuracy</li>
+                    <li>
+                      Established AI ethics framework ensuring fairness, transparency, and POPIA compliance across all
+                      ML models
+                    </li>
+                    <li>
+                      Led predictive analytics for insurance underwriting, reducing loss ratios by 18% and improving
+                      efficiency by 40%
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Previous Role */}
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h3 className="font-bold text-lg">Solutions Architect - Data & Analytics</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Standard Bank - Personal & Private Banking, Johannesburg
+                      </p>
+                    </div>
+                    <span className="text-sm text-muted-foreground">2022 - 2024</span>
+                  </div>
+                  <ul className="text-sm text-muted-foreground space-y-1 ml-4 list-disc">
+                    <li>
+                      Designed scalable, secure data solutions aligned with business requirements and digital
+                      transformation initiatives
+                    </li>
+                    <li>
+                      Architected cloud-native solutions across Azure, AWS, and GCP implementing data lakes and
+                      warehouses
+                    </li>
+                    <li>Developed data models ensuring consistency, quality, and lineage across enterprise systems</li>
+                    <li>Embedded data governance and ensured POPIA/GDPR compliance through robust security controls</li>
+                  </ul>
+                </div>
+
+                {/* Earlier Roles */}
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h3 className="font-bold text-lg">Senior Data Engineer & Analytics Lead</h3>
+                      <p className="text-sm text-muted-foreground">TechCorp Solutions</p>
+                    </div>
+                    <span className="text-sm text-muted-foreground">2019 - 2022</span>
+                  </div>
+                  <ul className="text-sm text-muted-foreground space-y-1 ml-4 list-disc">
+                    <li>Led analytics team of 8 engineers delivering advanced analytics and ML model deployment</li>
+                    <li>Built customer segmentation models using Python/R, driving 45% improvement in marketing ROI</li>
+                    <li>Optimized Spark jobs reducing processing time by 70% and infrastructure costs by 45%</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h3 className="font-bold text-lg">Data Engineer & Business Analyst</h3>
+                      <p className="text-sm text-muted-foreground">DataFlow Analytics</p>
+                    </div>
+                    <span className="text-sm text-muted-foreground">2016 - 2019</span>
+                  </div>
+                  <ul className="text-sm text-muted-foreground space-y-1 ml-4 list-disc">
+                    <li>Built ETL pipelines processing 100GB+ daily using Apache Airflow and Python</li>
+                    <li>Developed statistical models in R/SAS for customer behavior analysis and churn prediction</li>
+                    <li>Created executive dashboards in Tableau combining data signals into actionable insights</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Technical Skills */}
+            <div className="border-b pb-4">
+              <h2 className="text-2xl font-serif font-bold mb-3">Technical Skills</h2>
+              <div className="grid md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <h3 className="font-semibold mb-2">AI & Machine Learning</h3>
+                  <p className="text-muted-foreground">
+                    Machine Learning, Deep Learning, Natural Language Processing, Predictive Analytics, AI Ethics
+                  </p>
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-2">Analytics & Visualization</h3>
+                  <p className="text-muted-foreground">
+                    Tableau, Looker, Power BI, Advanced Excel, Statistical Analysis (SAS/R)
+                  </p>
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-2">Big Data Technologies</h3>
+                  <p className="text-muted-foreground">
+                    Apache Spark, Hadoop, Kafka, Real-time Processing, Automated Decision-Making
+                  </p>
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-2">Cloud Computing</h3>
+                  <p className="text-muted-foreground">
+                    AWS (EC2, EMR, Redshift, SageMaker), Azure ML, GCP BigQuery, Cloud Architecture
+                  </p>
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-2">Programming Languages</h3>
+                  <p className="text-muted-foreground">Python (Pandas, NumPy, Scikit-learn), R, SQL, SAS, Scala</p>
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-2">Leadership & Strategy</h3>
+                  <p className="text-muted-foreground">
+                    Team Leadership, Analytics Strategy, Stakeholder Management, TOGAF Frameworks
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Education */}
+            <div className="border-b pb-4">
+              <h2 className="text-2xl font-serif font-bold mb-3">Education</h2>
+              <div className="space-y-3">
+                <div>
+                  <h3 className="font-bold">Master of Science in Data Science</h3>
+                  <p className="text-sm text-muted-foreground">University of Johannesburg</p>
+                  <p className="text-sm text-muted-foreground">
+                    Specialization: Machine Learning & Statistical Analysis
+                  </p>
+                </div>
+                <div>
+                  <h3 className="font-bold">Bachelor of Science in Computer Science</h3>
+                  <p className="text-sm text-muted-foreground">University of Cape Town</p>
+                  <p className="text-sm text-muted-foreground">Focus: Data Structures & Algorithms</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Certifications */}
+            <div className="border-b pb-4">
+              <h2 className="text-2xl font-serif font-bold mb-3">Certifications</h2>
+              <div className="grid md:grid-cols-2 gap-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">AWS Certified Solutions Architect</Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">TOGAF 9 Certified</Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">Azure Data Engineer Associate</Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">Google Cloud Professional Data Engineer</Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">Tableau Desktop Specialist</Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">Apache Spark Developer</Badge>
+                </div>
+              </div>
+            </div>
+
+            {/* Key Projects */}
+            <div>
+              <h2 className="text-2xl font-serif font-bold mb-3">Key Projects</h2>
+              <div className="space-y-3 text-sm">
+                <div>
+                  <h3 className="font-bold">Real-time Fraud Detection Pipeline</h3>
+                  <p className="text-muted-foreground">
+                    Built scalable fraud detection system processing 1M+ transactions daily with 98.5% accuracy using
+                    Kafka, Spark Streaming, and ML models
+                  </p>
+                </div>
+                <div>
+                  <h3 className="font-bold">Customer Analytics Data Warehouse</h3>
+                  <p className="text-muted-foreground">
+                    Architected multi-terabyte data warehouse on AWS Redshift with automated ETL, increasing marketing
+                    ROI by 35%
+                  </p>
+                </div>
+                <div>
+                  <h3 className="font-bold">IoT Sensor Data Processing Platform</h3>
+                  <p className="text-muted-foreground">
+                    Developed distributed system handling 10M+ sensor readings per hour with predictive maintenance
+                    algorithms
+                  </p>
+                </div>
+                <div>
+                  <h3 className="font-bold">Financial Risk Analytics Engine</h3>
+                  <p className="text-muted-foreground">
+                    Built risk analytics platform using advanced statistical models, improving accuracy by 30% and
+                    reducing processing time by 60%
+                  </p>
+                </div>
+                <div>
+                  <h3 className="font-bold">Enterprise HR Data Platform</h3>
+                  <p className="text-muted-foreground">
+                    Developed unified HR data platform integrating 8+ systems, enabling advanced analytics and reducing
+                    reporting delays significantly.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Print Button */}
+            <div className="flex justify-end gap-2 pt-4 border-t print:hidden">
+              <Button variant="outline" onClick={() => window.print()}>
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Print Resume
+              </Button>
+              <Button onClick={() => setIsResumeOpen(false)}>Close</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -2184,9 +2184,9 @@ export default function Portfolio() {
               <CardHeader>
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
-                    <CardTitle className="text-xl">Head of Data Analytics & AI</CardTitle>
+                    <CardTitle className="text-xl">Data Analytics & AI Lead</CardTitle>
                     <CardDescription className="text-base">
-                      Standard Bank • Insurance & Asset Management • Johannesburg
+                      TotalEnergies • Finance & IS Management • Rosebank Johannesburg
                     </CardDescription>
                   </div>
                   <Badge className="w-fit bg-primary">Current Role</Badge>
@@ -2226,13 +2226,14 @@ export default function Portfolio() {
               </CardContent>
             </Card>
 
+            {/* Updated Experience Entry */}
             <Card>
               <CardHeader>
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
-                    <CardTitle className="text-xl">Solutions Architect - Data & Analytics</CardTitle>
+                    <CardTitle className="text-xl">BI Solutions Architect - Data & Analytics</CardTitle>
                     <CardDescription className="text-base">
-                      Standard Bank • Personal & Private Banking • Johannesburg
+                      TotalEnergies • Finance & IS • Rosebank Johannesburg
                     </CardDescription>
                   </div>
                   <Badge variant="outline" className="w-fit">
@@ -3318,24 +3319,34 @@ export default function Portfolio() {
                 <div>
                   <div className="flex justify-between items-start mb-2">
                     <div>
-                      <h3 className="font-bold text-lg">Solutions Architect - Data & Analytics</h3>
+                      <h3 className="font-bold text-lg">BI Solutions Architect - Data & Analytics</h3>
                       <p className="text-sm text-muted-foreground">
-                        Standard Bank - Personal & Private Banking, Johannesburg
+                        TotalEnergies • Finance & IS • Rosebank Johannesburg
                       </p>
                     </div>
                     <span className="text-sm text-muted-foreground">2022 - 2024</span>
                   </div>
                   <ul className="text-sm text-muted-foreground space-y-1 ml-4 list-disc">
                     <li>
-                      Designed scalable, secure data solutions aligned with business requirements and digital
-                      transformation initiatives
+                      Designed scalable, secure, and high-performance data solutions aligned with business requirements
+                      and digital transformation initiatives
                     </li>
                     <li>
-                      Architected cloud-native solutions across Azure, AWS, and GCP implementing data lakes and
-                      warehouses
+                      Architected cloud-native data solutions across Azure, AWS, and GCP, implementing data lakes,
+                      warehouses, and lakehouses
                     </li>
-                    <li>Developed data models ensuring consistency, quality, and lineage across enterprise systems</li>
-                    <li>Embedded data governance and ensured POPIA/GDPR compliance through robust security controls</li>
+                    <li>
+                      Developed conceptual, logical, and physical data models ensuring data consistency, quality, and
+                      lineage across enterprise systems
+                    </li>
+                    <li>
+                      Embedded data governance principles and ensured compliance with POPIA and GDPR regulations through
+                      robust security controls
+                    </li>
+                    <li>
+                      Led technical architecture reviews and mentored data engineering teams on best practices using
+                      TOGAF frameworks
+                    </li>
                   </ul>
                 </div>
 

@@ -28,9 +28,28 @@ import {
   Users,
   X,
   BarChart3,
+  FileText,
+  FileSpreadsheet,
 } from "lucide-react"
 
-const projectDetails = {
+// Define ProjectDetail interface
+interface ProjectDetail {
+  title: string
+  problemStatement: string
+  architecture: string | undefined
+  solution: {
+    sql?: string
+    python?: string
+    scala?: string
+    yaml?: string
+    cql?: string
+    r?: string
+    msaccess?: string
+    powerpoint?: string
+  }
+}
+
+const projectDetails: Record<string, ProjectDetail> = {
   "fraud-detection": {
     title: "Real-time Fraud Detection Pipeline",
     problemStatement:
@@ -1809,6 +1828,1505 @@ CALCULATE(
 )`,
     },
   },
+  "insurance-analytics": {
+    title: "Insurance Analytics & Insights Platform",
+    problemStatement:
+      "The Insurance & Asset Management division struggled with fragmented data across policy administration, claims processing, and customer interaction systems. Business units couldn't access timely insights on policy performance, claims trends, or customer behavior, hindering strategic decision-making. Manual reporting processes took 5-7 days, preventing proactive risk management and personalized customer engagement. The platform needed to handle unstructured data from multiple sources and provide real-time analytics for operational and strategic decisions.",
+    architecture: "/insurance-analytics-platform-architecture-showing-d.jpg",
+    solution: {
+      sql: `-- Insurance Analytics Platform - SQL Data Models
+-- Policy Performance Analytics
+CREATE VIEW analytics.vw_policy_performance AS
+WITH policy_metrics AS (
+  SELECT 
+    p.policy_id,
+    p.policy_number,
+    p.product_type,
+    p.coverage_type,
+    p.policy_start_date,
+    p.policy_end_date,
+    p.annual_premium,
+    p.sum_insured,
+    c.customer_id,
+    c.customer_segment,
+    c.risk_profile,
+    
+    -- Claims metrics
+    COUNT(cl.claim_id) as total_claims,
+    SUM(cl.claim_amount) as total_claim_amount,
+    AVG(cl.claim_amount) as avg_claim_amount,
+    SUM(CASE WHEN cl.claim_status = 'Approved' THEN cl.claim_amount ELSE 0 END) as paid_claims,
+    
+    -- Loss ratio calculation
+    CASE WHEN p.annual_premium > 0 
+         THEN (SUM(cl.claim_amount) / p.annual_premium) * 100 
+         ELSE 0 END as loss_ratio,
+    
+    -- Policy tenure
+    DATEDIFF(month, p.policy_start_date, COALESCE(p.policy_end_date, GETDATE())) as policy_tenure_months,
+    
+    -- Renewal indicator
+    CASE WHEN p.renewal_date IS NOT NULL THEN 1 ELSE 0 END as is_renewed,
+    
+    -- Customer lifetime value
+    p.annual_premium * DATEDIFF(year, p.policy_start_date, COALESCE(p.policy_end_date, GETDATE())) as customer_ltv
+    
+  FROM policies p
+  INNER JOIN customers c ON p.customer_id = c.customer_id
+  LEFT JOIN claims cl ON p.policy_id = cl.policy_id
+  WHERE p.policy_start_date >= '2020-01-01'
+  GROUP BY 
+    p.policy_id, p.policy_number, p.product_type, p.coverage_type,
+    p.policy_start_date, p.policy_end_date, p.annual_premium, p.sum_insured,
+    c.customer_id, c.customer_segment, c.risk_profile, p.renewal_date
+)
+SELECT 
+  *,
+  -- Risk categorization
+  CASE 
+    WHEN loss_ratio > 100 THEN 'High Risk'
+    WHEN loss_ratio > 70 THEN 'Medium Risk'
+    WHEN loss_ratio > 40 THEN 'Low Risk'
+    ELSE 'Very Low Risk'
+  END as risk_category,
+  
+  -- Profitability score
+  (annual_premium - total_claim_amount) as underwriting_profit,
+  
+  -- Churn prediction indicator
+  CASE 
+    WHEN policy_tenure_months < 12 AND total_claims > 2 THEN 'High Churn Risk'
+    WHEN policy_tenure_months < 24 AND loss_ratio > 80 THEN 'Medium Churn Risk'
+    ELSE 'Low Churn Risk'
+  END as churn_risk
+FROM policy_metrics;
+
+-- Claims Analytics with Root Cause Analysis
+CREATE PROCEDURE analytics.sp_claims_root_cause_analysis
+    @start_date DATE,
+    @end_date DATE,
+    @product_type VARCHAR(50) = NULL
+AS
+BEGIN
+    -- Claims frequency and severity analysis
+    WITH claims_analysis AS (
+        SELECT 
+            c.claim_id,
+            c.claim_number,
+            c.claim_date,
+            c.claim_amount,
+            c.claim_type,
+            c.claim_cause,
+            c.settlement_days,
+            p.product_type,
+            p.coverage_type,
+            cust.customer_segment,
+            cust.age_group,
+            cust.geographic_region,
+            
+            -- Time-based features
+            DATEPART(month, c.claim_date) as claim_month,
+            DATEPART(quarter, c.claim_date) as claim_quarter,
+            DATEPART(weekday, c.claim_date) as claim_day_of_week,
+            
+            -- Claim severity classification
+            CASE 
+                WHEN c.claim_amount > 100000 THEN 'Catastrophic'
+                WHEN c.claim_amount > 50000 THEN 'Major'
+                WHEN c.claim_amount > 10000 THEN 'Moderate'
+                ELSE 'Minor'
+            END as severity_level
+            
+        FROM claims c
+        INNER JOIN policies p ON c.policy_id = p.policy_id
+        INNER JOIN customers cust ON p.customer_id = cust.customer_id
+        WHERE c.claim_date BETWEEN @start_date AND @end_date
+          AND (@product_type IS NULL OR p.product_type = @product_type)
+    ),
+    
+    root_cause_summary AS (
+        SELECT 
+            claim_cause,
+            product_type,
+            COUNT(*) as claim_count,
+            SUM(claim_amount) as total_claim_amount,
+            AVG(claim_amount) as avg_claim_amount,
+            AVG(settlement_days) as avg_settlement_days,
+            
+            -- Distribution by severity
+            SUM(CASE WHEN severity_level = 'Catastrophic' THEN 1 ELSE 0 END) as catastrophic_count,
+            SUM(CASE WHEN severity_level = 'Major' THEN 1 ELSE 0 END) as major_count,
+            SUM(CASE WHEN severity_level = 'Moderate' THEN 1 ELSE 0 END) as moderate_count,
+            SUM(CASE WHEN severity_level = 'Minor' THEN 1 ELSE 0 END) as minor_count,
+            
+            -- Geographic concentration
+            COUNT(DISTINCT geographic_region) as affected_regions,
+            
+            -- Trend indicators
+            COUNT(CASE WHEN claim_month IN (1,2,3) THEN 1 END) as q1_claims,
+            COUNT(CASE WHEN claim_month IN (4,5,6) THEN 1 END) as q2_claims,
+            COUNT(CASE WHEN claim_month IN (7,8,9) THEN 1 END) as q3_claims,
+            COUNT(CASE WHEN claim_month IN (10,11,12) THEN 1 END) as q4_claims
+            
+        FROM claims_analysis
+        GROUP BY claim_cause, product_type
+    )
+    
+    SELECT 
+        *,
+        -- Impact score (frequency * severity)
+        (claim_count * avg_claim_amount / 1000) as impact_score,
+        
+        -- Percentage of total claims
+        CAST(claim_count AS FLOAT) / SUM(claim_count) OVER() * 100 as pct_of_total_claims,
+        
+        -- Cumulative percentage (Pareto analysis)
+        SUM(CAST(claim_count AS FLOAT) / SUM(claim_count) OVER() * 100) 
+            OVER(ORDER BY claim_count DESC) as cumulative_pct
+            
+    FROM root_cause_summary
+    ORDER BY impact_score DESC;
+END;
+
+-- Customer Insights & Segmentation
+CREATE VIEW analytics.vw_customer_360 AS
+WITH customer_policies AS (
+    SELECT 
+        customer_id,
+        COUNT(DISTINCT policy_id) as total_policies,
+        SUM(annual_premium) as total_annual_premium,
+        MIN(policy_start_date) as first_policy_date,
+        MAX(policy_start_date) as latest_policy_date,
+        COUNT(CASE WHEN policy_status = 'Active' THEN 1 END) as active_policies,
+        STRING_AGG(product_type, ', ') as product_mix
+    FROM policies
+    GROUP BY customer_id
+),
+customer_claims AS (
+    SELECT 
+        p.customer_id,
+        COUNT(c.claim_id) as lifetime_claims,
+        SUM(c.claim_amount) as lifetime_claim_amount,
+        MAX(c.claim_date) as last_claim_date,
+        AVG(c.settlement_days) as avg_settlement_days
+    FROM claims c
+    INNER JOIN policies p ON c.policy_id = p.policy_id
+    GROUP BY p.customer_id
+),
+customer_interactions AS (
+    SELECT 
+        customer_id,
+        COUNT(*) as total_interactions,
+        SUM(CASE WHEN interaction_type = 'Complaint' THEN 1 ELSE 0 END) as complaint_count,
+        SUM(CASE WHEN interaction_type = 'Inquiry' THEN 1 ELSE 0 END) as inquiry_count,
+        AVG(satisfaction_score) as avg_satisfaction_score
+    FROM customer_interactions
+    WHERE interaction_date >= DATEADD(year, -1, GETDATE())
+    GROUP BY customer_id
+)
+SELECT 
+    c.customer_id,
+    c.customer_name,
+    c.age_group,
+    c.income_bracket,
+    c.geographic_region,
+    c.customer_since_date,
+    
+    -- Policy metrics
+    cp.total_policies,
+    cp.active_policies,
+    cp.total_annual_premium,
+    cp.product_mix,
+    DATEDIFF(year, cp.first_policy_date, GETDATE()) as customer_tenure_years,
+    
+    -- Claims behavior
+    COALESCE(cc.lifetime_claims, 0) as lifetime_claims,
+    COALESCE(cc.lifetime_claim_amount, 0) as lifetime_claim_amount,
+    CASE WHEN cp.total_annual_premium > 0 
+         THEN (COALESCE(cc.lifetime_claim_amount, 0) / cp.total_annual_premium) * 100 
+         ELSE 0 END as customer_loss_ratio,
+    
+    -- Engagement metrics
+    COALESCE(ci.total_interactions, 0) as annual_interactions,
+    COALESCE(ci.complaint_count, 0) as annual_complaints,
+    COALESCE(ci.avg_satisfaction_score, 0) as satisfaction_score,
+    
+    -- Customer value segmentation
+    CASE 
+        WHEN cp.total_annual_premium > 50000 AND COALESCE(cc.lifetime_claims, 0) < 2 THEN 'Premium Low Risk'
+        WHEN cp.total_annual_premium > 50000 THEN 'Premium High Value'
+        WHEN cp.total_annual_premium > 20000 AND COALESCE(cc.lifetime_claims, 0) < 3 THEN 'Standard Profitable'
+        WHEN cp.total_annual_premium > 20000 THEN 'Standard Monitor'
+        WHEN COALESCE(cc.lifetime_claims, 0) > 5 THEN 'High Risk'
+        ELSE 'Basic'
+    END as customer_segment,
+    
+    -- Churn risk score (0-100)
+    (
+        CASE WHEN DATEDIFF(day, cc.last_claim_date, GETDATE()) < 90 THEN 20 ELSE 0 END +
+        CASE WHEN ci.complaint_count > 2 THEN 30 ELSE 0 END +
+        CASE WHEN ci.avg_satisfaction_score < 3 THEN 25 ELSE 0 END +
+        CASE WHEN cp.active_policies = 0 THEN 25 ELSE 0 END
+    ) as churn_risk_score
+    
+FROM customers c
+LEFT JOIN customer_policies cp ON c.customer_id = cp.customer_id
+LEFT JOIN customer_claims cc ON c.customer_id = cc.customer_id
+LEFT JOIN customer_interactions ci ON c.customer_id = ci.customer_id;
+
+-- Real Estate Insurance Analytics
+CREATE VIEW analytics.vw_real_estate_insurance_insights AS
+SELECT 
+    p.policy_id,
+    p.policy_number,
+    p.property_type,
+    p.property_location,
+    p.property_value,
+    p.coverage_amount,
+    p.annual_premium,
+    
+    -- Property risk factors
+    pr.building_age,
+    pr.construction_type,
+    pr.security_features_score,
+    pr.natural_disaster_zone,
+    pr.crime_rate_index,
+    
+    -- Claims history
+    COUNT(c.claim_id) as property_claims_count,
+    SUM(c.claim_amount) as total_claims_amount,
+    
+    -- Risk assessment
+    CASE 
+        WHEN pr.building_age > 50 THEN 'High Age Risk'
+        WHEN pr.building_age > 30 THEN 'Medium Age Risk'
+        ELSE 'Low Age Risk'
+    END as age_risk_category,
+    
+    CASE 
+        WHEN pr.natural_disaster_zone IN ('Flood', 'Earthquake') THEN 'High Natural Risk'
+        WHEN pr.natural_disaster_zone IN ('Storm', 'Wildfire') THEN 'Medium Natural Risk'
+        ELSE 'Low Natural Risk'
+    END as natural_risk_category,
+    
+    -- Premium adequacy
+    (p.annual_premium / p.coverage_amount) * 100 as premium_rate_pct,
+    CASE 
+        WHEN (SUM(c.claim_amount) / p.annual_premium) > 1.2 THEN 'Underpriced'
+        WHEN (SUM(c.claim_amount) / p.annual_premium) < 0.3 THEN 'Overpriced'
+        ELSE 'Adequately Priced'
+    END as pricing_assessment
+    
+FROM policies p
+INNER JOIN property_details pr ON p.policy_id = pr.policy_id
+LEFT JOIN claims c ON p.policy_id = c.policy_id
+WHERE p.product_type = 'Property Insurance'
+GROUP BY 
+    p.policy_id, p.policy_number, p.property_type, p.property_location,
+    p.property_value, p.coverage_amount, p.annual_premium,
+    pr.building_age, pr.construction_type, pr.security_features_score,
+    pr.natural_disaster_zone, pr.crime_rate_index;`,
+      python: `# Insurance Analytics Platform - Python Data Processing
+import pandas as pd
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingRegressor
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+import pyodbc
+import matplotlib.pyplot as plt
+import seaborn as sns
+from datetime import datetime, timedelta
+import warnings
+warnings.filterwarnings('ignore')
+
+class InsuranceAnalyticsPlatform:
+    """
+    Enterprise Insurance Analytics & Insights Platform
+    Handles policy performance, claims analytics, and customer insights
+    """
+    
+    def __init__(self, connection_string):
+        self.conn = pyodbc.connect(connection_string)
+        self.scaler = StandardScaler()
+    
+    def extract_policy_data(self, start_date, end_date):
+        """Extract policy and claims data for analysis"""
+        query = """
+        SELECT 
+            p.policy_id,
+            p.policy_number,
+            p.product_type,
+            p.annual_premium,
+            p.sum_insured,
+            p.policy_start_date,
+            c.customer_id,
+            c.age_group,
+            c.customer_segment,
+            c.geographic_region,
+            COUNT(cl.claim_id) as claim_count,
+            SUM(cl.claim_amount) as total_claim_amount,
+            DATEDIFF(month, p.policy_start_date, GETDATE()) as policy_age_months
+        FROM policies p
+        INNER JOIN customers c ON p.customer_id = c.customer_id
+        LEFT JOIN claims cl ON p.policy_id = cl.policy_id
+        WHERE p.policy_start_date BETWEEN ? AND ?
+        GROUP BY 
+            p.policy_id, p.policy_number, p.product_type, p.annual_premium,
+            p.sum_insured, p.policy_start_date, c.customer_id, c.age_group,
+            c.customer_segment, c.geographic_region
+        """
+        
+        df = pd.read_sql(query, self.conn, params=[start_date, end_date])
+        return df
+    
+    def calculate_loss_ratios(self, df):
+        """Calculate loss ratios and risk metrics"""
+        df['loss_ratio'] = np.where(
+            df['annual_premium'] > 0,
+            (df['total_claim_amount'] / df['annual_premium']) * 100,
+            0
+        )
+        
+        df['risk_category'] = pd.cut(
+            df['loss_ratio'],
+            bins=[0, 40, 70, 100, float('inf')],
+            labels=['Very Low Risk', 'Low Risk', 'Medium Risk', 'High Risk']
+        )
+        
+        df['underwriting_profit'] = df['annual_premium'] - df['total_claim_amount']
+        
+        return df
+    
+    def churn_prediction_model(self, df):
+        """Build churn prediction model using Random Forest"""
+        # Feature engineering
+        features = df[['annual_premium', 'sum_insured', 'claim_count', 
+                      'total_claim_amount', 'policy_age_months']].copy()
+        
+        # Create target variable (churn indicator)
+        # Assuming we have renewal data
+        df['churned'] = np.where(
+            (df['policy_age_months'] > 12) & (df['claim_count'] > 2) & (df['loss_ratio'] > 80),
+            1, 0
+        )
+        
+        # Handle missing values
+        features = features.fillna(features.median())
+        
+        # Split data
+        X_train, X_test, y_train, y_test = train_test_split(
+            features, df['churned'], test_size=0.3, random_state=42
+        )
+        
+        # Scale features
+        X_train_scaled = self.scaler.fit_transform(X_train)
+        X_test_scaled = self.scaler.transform(X_test)
+        
+        # Train model
+        model = RandomForestClassifier(
+            n_estimators=100,
+            max_depth=10,
+            random_state=42,
+            class_weight='balanced'
+        )
+        model.fit(X_train_scaled, y_train)
+        
+        # Predictions
+        df['churn_probability'] = model.predict_proba(
+            self.scaler.transform(features)
+        )[:, 1]
+        
+        df['churn_risk_segment'] = pd.cut(
+            df['churn_probability'],
+            bins=[0, 0.3, 0.6, 1.0],
+            labels=['Low Churn Risk', 'Medium Churn Risk', 'High Churn Risk']
+        )
+        
+        # Feature importance
+        feature_importance = pd.DataFrame({
+            'feature': features.columns,
+            'importance': model.feature_importances_
+        }).sort_values('importance', ascending=False)
+        
+        return df, model, feature_importance
+    
+    def claims_root_cause_analysis(self, start_date, end_date):
+        """Perform root cause analysis on claims data"""
+        query = """
+        SELECT 
+            c.claim_id,
+            c.claim_date,
+            c.claim_amount,
+            c.claim_type,
+            c.claim_cause,
+            c.settlement_days,
+            p.product_type,
+            p.coverage_type,
+            cust.geographic_region,
+            DATEPART(month, c.claim_date) as claim_month,
+            DATEPART(quarter, c.claim_date) as claim_quarter
+        FROM claims c
+        INNER JOIN policies p ON c.policy_id = p.policy_id
+        INNER JOIN customers cust ON p.customer_id = cust.customer_id
+        WHERE c.claim_date BETWEEN ? AND ?
+        """
+        
+        claims_df = pd.read_sql(query, self.conn, params=[start_date, end_date])
+        
+        # Severity classification
+        claims_df['severity_level'] = pd.cut(
+            claims_df['claim_amount'],
+            bins=[0, 10000, 50000, 100000, float('inf')],
+            labels=['Minor', 'Moderate', 'Major', 'Catastrophic']
+        )
+        
+        # Root cause summary
+        root_cause_summary = claims_df.groupby(['claim_cause', 'product_type']).agg({
+            'claim_id': 'count',
+            'claim_amount': ['sum', 'mean'],
+            'settlement_days': 'mean'
+        }).reset_index()
+        
+        root_cause_summary.columns = ['claim_cause', 'product_type', 'claim_count', 
+                                      'total_amount', 'avg_amount', 'avg_settlement_days']
+        
+        # Calculate impact score
+        root_cause_summary['impact_score'] = (
+            root_cause_summary['claim_count'] * 
+            root_cause_summary['avg_amount'] / 1000
+        )
+        
+        # Pareto analysis
+        root_cause_summary = root_cause_summary.sort_values('impact_score', ascending=False)
+        root_cause_summary['cumulative_pct'] = (
+            root_cause_summary['claim_count'].cumsum() / 
+            root_cause_summary['claim_count'].sum() * 100
+        )
+        
+        return claims_df, root_cause_summary
+    
+    def customer_segmentation_analysis(self):
+        """Perform customer segmentation using RFM analysis"""
+        query = """
+        SELECT 
+            c.customer_id,
+            c.customer_name,
+            c.customer_segment,
+            COUNT(DISTINCT p.policy_id) as total_policies,
+            SUM(p.annual_premium) as total_premium,
+            MAX(p.policy_start_date) as last_policy_date,
+            COUNT(cl.claim_id) as total_claims,
+            SUM(cl.claim_amount) as total_claim_amount
+        FROM customers c
+        LEFT JOIN policies p ON c.customer_id = p.customer_id
+        LEFT JOIN claims cl ON p.policy_id = cl.policy_id
+        GROUP BY c.customer_id, c.customer_name, c.customer_segment
+        """
+        
+        customers_df = pd.read_sql(query, self.conn)
+        
+        # RFM Analysis
+        customers_df['recency_days'] = (
+            datetime.now() - pd.to_datetime(customers_df['last_policy_date'])
+        ).dt.days
+        
+        # Calculate RFM scores (1-5 scale)
+        customers_df['recency_score'] = pd.qcut(
+            customers_df['recency_days'], 
+            q=5, 
+            labels=[5, 4, 3, 2, 1],
+            duplicates='drop'
+        )
+        
+        customers_df['frequency_score'] = pd.qcut(
+            customers_df['total_policies'], 
+            q=5, 
+            labels=[1, 2, 3, 4, 5],
+            duplicates='drop'
+        )
+        
+        customers_df['monetary_score'] = pd.qcut(
+            customers_df['total_premium'], 
+            q=5, 
+            labels=[1, 2, 3, 4, 5],
+            duplicates='drop'
+        )
+        
+        # Calculate RFM segment
+        customers_df['rfm_score'] = (
+            customers_df['recency_score'].astype(int) +
+            customers_df['frequency_score'].astype(int) +
+            customers_df['monetary_score'].astype(int)
+        )
+        
+        # Segment customers
+        def segment_customer(row):
+            if row['rfm_score'] >= 13:
+                return 'Champions'
+            elif row['rfm_score'] >= 10:
+                return 'Loyal Customers'
+            elif row['rfm_score'] >= 7:
+                return 'Potential Loyalists'
+            elif row['rfm_score'] >= 5:
+                return 'At Risk'
+            else:
+                return 'Lost'
+        
+        customers_df['customer_value_segment'] = customers_df.apply(segment_customer, axis=1)
+        
+        return customers_df
+    
+    def generate_executive_dashboard_data(self):
+        """Generate data for executive dashboard"""
+        # Key metrics
+        metrics_query = """
+        SELECT 
+            COUNT(DISTINCT policy_id) as total_policies,
+            SUM(annual_premium) as total_premium_revenue,
+            COUNT(DISTINCT customer_id) as total_customers,
+            AVG(annual_premium) as avg_premium_per_policy
+        FROM policies
+        WHERE policy_status = 'Active'
+        """
+        
+        metrics = pd.read_sql(metrics_query, self.conn)
+        
+        # Claims metrics
+        claims_query = """
+        SELECT 
+            COUNT(*) as total_claims,
+            SUM(claim_amount) as total_claim_amount,
+            AVG(claim_amount) as avg_claim_amount,
+            AVG(settlement_days) as avg_settlement_days
+        FROM claims
+        WHERE claim_date >= DATEADD(year, -1, GETDATE())
+        """
+        
+        claims_metrics = pd.read_sql(claims_query, self.conn)
+        
+        # Calculate overall loss ratio
+        loss_ratio = (
+            claims_metrics['total_claim_amount'].iloc[0] / 
+            metrics['total_premium_revenue'].iloc[0] * 100
+        )
+        
+        dashboard_data = {
+            'total_policies': metrics['total_policies'].iloc[0],
+            'total_premium_revenue': metrics['total_premium_revenue'].iloc[0],
+            'total_customers': metrics['total_customers'].iloc[0],
+            'avg_premium_per_policy': metrics['avg_premium_per_policy'].iloc[0],
+            'total_claims': claims_metrics['total_claims'].iloc[0],
+            'total_claim_amount': claims_metrics['total_claim_amount'].iloc[0],
+            'avg_claim_amount': claims_metrics['avg_claim_amount'].iloc[0],
+            'avg_settlement_days': claims_metrics['avg_settlement_days'].iloc[0],
+            'loss_ratio': loss_ratio
+        }
+        
+        return dashboard_data
+    
+    def export_to_powerbi(self, df, table_name):
+        """Export processed data to SQL for Power BI consumption"""
+        cursor = self.conn.cursor()
+        
+        # Create table if not exists
+        cursor.execute(f"""
+        IF OBJECT_ID('analytics.{table_name}', 'U') IS NOT NULL
+            DROP TABLE analytics.{table_name}
+        """)
+        
+        # Use pandas to_sql for efficient bulk insert
+        df.to_sql(
+            table_name,
+            self.conn,
+            schema='analytics',
+            if_exists='replace',
+            index=False
+        )
+        
+        print(f"Data exported to analytics.{table_name} for Power BI")
+
+# Example usage
+if __name__ == "__main__":
+    conn_string = "Driver={ODBC Driver 18 for SQL Server};Server=insurance-analytics.database.windows.net;Database=InsuranceAnalytics;Authentication=ActiveDirectoryMsi;"
+    
+    platform = InsuranceAnalyticsPlatform(conn_string)
+    
+    # Extract and analyze policy data
+    start_date = '2023-01-01'
+    end_date = '2024-12-31'
+    
+    policy_data = platform.extract_policy_data(start_date, end_date)
+    policy_data = platform.calculate_loss_ratios(policy_data)
+    
+    # Churn prediction
+    policy_data, churn_model, feature_importance = platform.churn_prediction_model(policy_data)
+    
+    # Claims root cause analysis
+    claims_data, root_causes = platform.claims_root_cause_analysis(start_date, end_date)
+    
+    # Customer segmentation
+    customer_segments = platform.customer_segmentation_analysis()
+    
+    # Generate dashboard data
+    dashboard_data = platform.generate_executive_dashboard_data()
+    
+    # Export to Power BI
+    platform.export_to_powerbi(policy_data, 'policy_analytics')
+    platform.export_to_powerbi(customer_segments, 'customer_segments')
+    platform.export_to_powerbi(root_causes, 'claims_root_causes')
+    
+    print("Insurance Analytics Platform processing completed!")`,
+      powerbi: `// Power BI DAX Measures - Insurance Analytics Dashboard
+
+// === KEY PERFORMANCE INDICATORS ===
+
+// Total Premium Revenue
+Total Premium Revenue = 
+SUM(policies[annual_premium])
+
+// Total Policies
+Total Policies = 
+COUNTROWS(policies)
+
+// Total Active Policies
+Active Policies = 
+CALCULATE(
+    COUNTROWS(policies),
+    policies[policy_status] = "Active"
+)
+
+// Total Claims Amount
+Total Claims Amount = 
+SUM(claims[claim_amount])
+
+// === LOSS RATIO METRICS ===
+
+// Overall Loss Ratio
+Loss Ratio = 
+DIVIDE(
+    [Total Claims Amount],
+    [Total Premium Revenue],
+    0
+) * 100
+
+// Loss Ratio by Product
+Loss Ratio by Product = 
+CALCULATE(
+    [Loss Ratio],
+    ALLEXCEPT(policies, policies[product_type])
+)
+
+// Target Loss Ratio (Industry benchmark)
+Target Loss Ratio = 70
+
+// Loss Ratio Variance
+Loss Ratio Variance = 
+[Loss Ratio] - [Target Loss Ratio]
+
+// === CLAIMS ANALYTICS ===
+
+// Average Claim Amount
+Avg Claim Amount = 
+AVERAGE(claims[claim_amount])
+
+// Claims Frequency
+Claims Frequency = 
+DIVIDE(
+    COUNTROWS(claims),
+    [Total Policies],
+    0
+)
+
+// Average Settlement Days
+Avg Settlement Days = 
+AVERAGE(claims[settlement_days])
+
+// Claims Pending
+Claims Pending = 
+CALCULATE(
+    COUNTROWS(claims),
+    claims[claim_status] = "Pending"
+)
+
+// Claims Approval Rate
+Claims Approval Rate = 
+DIVIDE(
+    CALCULATE(COUNTROWS(claims), claims[claim_status] = "Approved"),
+    COUNTROWS(claims),
+    0
+) * 100
+
+// === CUSTOMER ANALYTICS ===
+
+// Total Customers
+Total Customers = 
+DISTINCTCOUNT(customers[customer_id])
+
+// Customer Lifetime Value
+Customer LTV = 
+SUMX(
+    customers,
+    CALCULATE(
+        SUM(policies[annual_premium]) * 
+        DATEDIFF(
+            MIN(policies[policy_start_date]),
+            MAX(policies[policy_end_date]),
+            YEAR
+        )
+    )
+)
+
+// Average Policies per Customer
+Avg Policies per Customer = 
+DIVIDE(
+    [Total Policies],
+    [Total Customers],
+    0
+)
+
+// Customer Retention Rate
+Customer Retention Rate = 
+VAR CustomersLastYear = 
+    CALCULATE(
+        DISTINCTCOUNT(customers[customer_id]),
+        DATEADD('Date'[Date], -1, YEAR)
+    )
+VAR CustomersThisYear = 
+    DISTINCTCOUNT(customers[customer_id])
+VAR RetainedCustomers = 
+    CALCULATE(
+        DISTINCTCOUNT(customers[customer_id]),
+        FILTER(
+            ALL(customers),
+            CALCULATE(COUNTROWS(policies), DATEADD('Date'[Date], -1, YEAR)) > 0
+        )
+    )
+RETURN
+    DIVIDE(RetainedCustomers, CustomersLastYear, 0) * 100
+
+// === CHURN ANALYTICS ===
+
+// Churn Rate
+Churn Rate = 
+VAR TotalCustomersStart = 
+    CALCULATE(
+        DISTINCTCOUNT(customers[customer_id]),
+        DATEADD('Date'[Date], -1, YEAR)
+    )
+VAR ChurnedCustomers = 
+    CALCULATE(
+        DISTINCTCOUNT(customers[customer_id]),
+        customers[churned] = 1
+    )
+RETURN
+    DIVIDE(ChurnedCustomers, TotalCustomersStart, 0) * 100
+
+// High Churn Risk Customers
+High Churn Risk Customers = 
+CALCULATE(
+    DISTINCTCOUNT(customers[customer_id]),
+    customers[churn_risk_segment] = "High Churn Risk"
+)
+
+// === PROFITABILITY METRICS ===
+
+// Underwriting Profit
+Underwriting Profit = 
+[Total Premium Revenue] - [Total Claims Amount]
+
+// Profit Margin %
+Profit Margin = 
+DIVIDE(
+    [Underwriting Profit],
+    [Total Premium Revenue],
+    0
+) * 100
+
+// Profitable Policies Count
+Profitable Policies = 
+CALCULATE(
+    COUNTROWS(policies),
+    policies[underwriting_profit] > 0
+)
+
+// === TIME INTELLIGENCE ===
+
+// Premium Revenue YoY Growth
+Premium Revenue YoY Growth = 
+VAR CurrentYearRevenue = [Total Premium Revenue]
+VAR PreviousYearRevenue = 
+    CALCULATE(
+        [Total Premium Revenue],
+        DATEADD('Date'[Date], -1, YEAR)
+    )
+RETURN
+    DIVIDE(
+        CurrentYearRevenue - PreviousYearRevenue,
+        PreviousYearRevenue,
+        0
+    ) * 100
+
+// Claims Amount MoM Change
+Claims MoM Change = 
+VAR CurrentMonth = [Total Claims Amount]
+VAR PreviousMonth = 
+    CALCULATE(
+        [Total Claims Amount],
+        DATEADD('Date'[Date], -1, MONTH)
+    )
+RETURN
+    CurrentMonth - PreviousMonth
+
+// === SEGMENTATION METRICS ===
+
+// Premium Customers Count
+Premium Customers = 
+CALCULATE(
+    DISTINCTCOUNT(customers[customer_id]),
+    customers[customer_segment] IN {"Premium Low Risk", "Premium High Value"}
+)
+
+// High Risk Policies
+High Risk Policies = 
+CALCULATE(
+    COUNTROWS(policies),
+    policies[risk_category] = "High Risk"
+)
+
+// === REAL ESTATE SPECIFIC ===
+
+// Property Insurance Premium
+Property Premium = 
+CALCULATE(
+    [Total Premium Revenue],
+    policies[product_type] = "Property Insurance"
+)
+
+// High Value Properties
+High Value Properties = 
+CALCULATE(
+    COUNTROWS(policies),
+    policies[property_value] > 1000000
+)
+
+// Natural Disaster Exposure
+Natural Disaster Exposure = 
+CALCULATE(
+    SUM(policies[sum_insured]),
+    property_details[natural_disaster_zone] IN {"Flood", "Earthquake", "Storm"}
+)
+
+// === CONDITIONAL FORMATTING ===
+
+// Loss Ratio Color
+Loss Ratio Color = 
+SWITCH(
+    TRUE(),
+    [Loss Ratio] < 40, "Green",
+    [Loss Ratio] < 70, "Yellow",
+    [Loss Ratio] < 100, "Orange",
+    "Red"
+)
+
+// Churn Risk Color
+Churn Risk Color = 
+SWITCH(
+    TRUE(),
+    [Churn Rate] < 5, "Green",
+    [Churn Rate] < 10, "Yellow",
+    "Red"
+)
+`,
+    },
+  },
+  "credit-lifecycle-bi": {
+    title: "Credit Lifecycle BI & Reporting Platform",
+    problemStatement:
+      "The Business & Commercial Banking division faced significant challenges with manual reporting processes across the credit lifecycle (originations, account management, and collections). Data was scattered across multiple systems including legacy databases, Excel spreadsheets, and disparate HRIS platforms. Executive reports took 5-7 days to compile manually, with frequent data quality issues and inconsistencies. The business lacked real-time visibility into portfolio performance, credit risk trends, and operational efficiency metrics. There was no standardized approach to data access, leading to duplicate efforts and conflicting reports across teams.",
+    architecture: "/credit-lifecycle-bi-architecture-showing-sql-server.jpg",
+    solution: {
+      sql: `-- Credit Portfolio Analytics Data Model
+-- Comprehensive view of credit lifecycle performance
+
+-- Originations Performance Analysis
+CREATE VIEW vw_originations_performance AS
+SELECT 
+    o.application_date,
+    o.product_type,
+    o.customer_segment,
+    COUNT(DISTINCT o.application_id) as total_applications,
+    SUM(CASE WHEN o.status = 'Approved' THEN 1 ELSE 0 END) as approved_count,
+    SUM(CASE WHEN o.status = 'Approved' THEN o.loan_amount ELSE 0 END) as approved_amount,
+    CAST(SUM(CASE WHEN o.status = 'Approved' THEN 1 ELSE 0 END) AS FLOAT) / 
+        NULLIF(COUNT(*), 0) * 100 as approval_rate,
+    AVG(DATEDIFF(day, o.application_date, o.decision_date)) as avg_decision_days
+FROM credit_originations o
+WHERE o.application_date >= DATEADD(month, -12, GETDATE())
+GROUP BY o.application_date, o.product_type, o.customer_segment;
+
+-- Collections Performance with Root Cause Analysis
+CREATE PROCEDURE sp_collections_root_cause_analysis
+AS
+BEGIN
+    -- Pareto analysis of delinquency causes
+    WITH delinquency_causes AS (
+        SELECT 
+            c.delinquency_reason,
+            COUNT(*) as case_count,
+            SUM(c.outstanding_balance) as total_exposure,
+            AVG(c.days_past_due) as avg_dpd
+        FROM collections_cases c
+        WHERE c.status = 'Active'
+        GROUP BY c.delinquency_reason
+    ),
+    ranked_causes AS (
+        SELECT 
+            *,
+            SUM(case_count) OVER (ORDER BY case_count DESC) as running_total,
+            SUM(case_count) OVER () as grand_total
+        FROM delinquency_causes
+    )
+    SELECT 
+        delinquency_reason,
+        case_count,
+        total_exposure,
+        avg_dpd,
+        CAST(case_count AS FLOAT) / grand_total * 100 as pct_of_total,
+        CAST(running_total AS FLOAT) / grand_total * 100 as cumulative_pct
+    FROM ranked_causes
+    ORDER BY case_count DESC;
+END;
+
+-- Account Management Performance Metrics
+CREATE VIEW vw_account_management_kpis AS
+SELECT 
+    am.portfolio_manager,
+    am.product_line,
+    COUNT(DISTINCT am.account_id) as active_accounts,
+    SUM(am.current_balance) as total_portfolio_value,
+    AVG(am.credit_score) as avg_credit_score,
+    SUM(CASE WHEN am.risk_rating = 'High' THEN 1 ELSE 0 END) as high_risk_accounts,
+    SUM(CASE WHEN am.days_since_review > 90 THEN 1 ELSE 0 END) as overdue_reviews,
+    AVG(am.customer_satisfaction_score) as avg_csat
+FROM account_management am
+WHERE am.status = 'Active'
+GROUP BY am.portfolio_manager, am.product_line;`,
+
+      python: `"""
+Credit Lifecycle BI Automation Platform
+Automated report generation and data processing
+"""
+
+import pandas as pd
+import pyodbc
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.chart import BarChart, LineChart, Reference
+from datetime import datetime, timedelta
+import win32com.client as win32
+import os
+
+class CreditLifecycleReporter:
+    """Automated reporting for credit lifecycle analytics"""
+    
+    def __init__(self, connection_string):
+        self.conn = pyodbc.connect(connection_string)
+        self.report_date = datetime.now()
+        
+    def extract_originations_data(self):
+        """Extract originations performance data"""
+        query = """
+        SELECT * FROM vw_originations_performance
+        WHERE application_date >= DATEADD(month, -3, GETDATE())
+        ORDER BY application_date DESC
+        """
+        return pd.read_sql(query, self.conn)
+    
+    def extract_collections_data(self):
+        """Extract collections performance with root cause analysis"""
+        query = "EXEC sp_collections_root_cause_analysis"
+        return pd.read_sql(query, self.conn)
+    
+    def extract_account_management_data(self):
+        """Extract account management KPIs"""
+        query = "SELECT * FROM vw_account_management_kpis"
+        return pd.read_sql(query, self.conn)
+    
+    def generate_excel_report(self, output_path):
+        """Generate comprehensive Excel report with charts"""
+        
+        # Extract all data
+        orig_df = self.extract_originations_data()
+        coll_df = self.extract_collections_data()
+        acct_df = self.extract_account_management_data()
+        
+        # Create Excel workbook
+        wb = openpyxl.Workbook()
+        
+        # Originations sheet
+        ws_orig = wb.active
+        ws_orig.title = "Originations"
+        self._write_dataframe_to_sheet(ws_orig, orig_df, "Originations Performance")
+        self._add_originations_chart(ws_orig, len(orig_df))
+        
+        # Collections sheet
+        ws_coll = wb.create_sheet("Collections")
+        self._write_dataframe_to_sheet(ws_coll, coll_df, "Collections Root Cause Analysis")
+        self._add_pareto_chart(ws_coll, len(coll_df))
+        
+        # Account Management sheet
+        ws_acct = wb.create_sheet("Account Management")
+        self._write_dataframe_to_sheet(ws_acct, acct_df, "Account Management KPIs")
+        
+        # Save workbook
+        wb.save(output_path)
+        print(f"Excel report generated: {output_path}")
+        
+    def _write_dataframe_to_sheet(self, ws, df, title):
+        """Write DataFrame to Excel sheet with formatting"""
+        
+        # Title
+        ws['A1'] = title
+        ws['A1'].font = Font(size=14, bold=True)
+        ws['A1'].fill = PatternFill(start_color="366092", fill_type="solid")
+        ws['A1'].font = Font(size=14, bold=True, color="FFFFFF")
+        
+        # Headers
+        for col_num, column_title in enumerate(df.columns, 1):
+            cell = ws.cell(row=3, column=col_num)
+            cell.value = column_title
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color="D9E1F2", fill_type="solid")
+        
+        # Data
+        for row_num, row_data in enumerate(df.values, 4):
+            for col_num, cell_value in enumerate(row_data, 1):
+                ws.cell(row=row_num, column=col_num, value=cell_value)
+    
+    def generate_powerpoint_presentation(self, excel_path, output_path):
+        """Generate automated PowerPoint presentation"""
+        
+        ppt = win32.Dispatch('PowerPoint.Application')
+        ppt.Visible = True
+        
+        # Create presentation
+        presentation = ppt.Presentations.Add()
+        
+        # Title slide
+        slide1 = presentation.Slides.Add(1, 1)  # ppLayoutTitle
+        slide1.Shapes.Title.TextFrame.TextRange.Text = "Credit Lifecycle Performance Report"
+        slide1.Shapes(2).TextFrame.TextRange.Text = f"Report Date: {self.report_date.strftime('%B %d, %Y')}"
+        
+        # Originations slide
+        slide2 = presentation.Slides.Add(2, 11)  # ppLayoutTitleOnly
+        slide2.Shapes.Title.TextFrame.TextRange.Text = "Originations Performance"
+        
+        # Collections slide
+        slide3 = presentation.Slides.Add(3, 11)
+        slide3.Shapes.Title.TextFrame.TextRange.Text = "Collections Root Cause Analysis"
+        
+        # Save presentation
+        presentation.SaveAs(output_path)
+        presentation.Close()
+        ppt.Quit()
+        
+        print(f"PowerPoint presentation generated: {output_path}")
+    
+    def automate_daily_reports(self):
+        """Automated daily report generation"""
+        
+        report_folder = f"C:/Reports/{self.report_date.strftime('%Y-%m-%d')}"
+        os.makedirs(report_folder, exist_ok=True)
+        
+        # Generate Excel report
+        excel_path = f"{report_folder}/Credit_Lifecycle_Report.xlsx"
+        self.generate_excel_report(excel_path)
+        
+        # Generate PowerPoint presentation
+        ppt_path = f"{report_folder}/Credit_Lifecycle_Presentation.pptx"
+        self.generate_powerpoint_presentation(excel_path, ppt_path)
+        
+        return excel_path, ppt_path
+
+# Usage
+if __name__ == "__main__":
+    conn_string = "DRIVER={SQL Server};SERVER=sql-server;DATABASE=CreditDB;Trusted_Connection=yes"
+    reporter = CreditLifecycleReporter(conn_string)
+    
+    # Run automated daily reports
+    excel_file, ppt_file = reporter.automate_daily_reports()
+    print(f"Reports generated successfully!")`,
+
+      msaccess: `' MS Access VBA - Credit Data Management System
+' Automated data import, validation, and export
+
+Option Compare Database
+Option Explicit
+
+' Main automation routine
+Public Sub AutomateDataRefresh()
+    On Error GoTo ErrorHandler
+    
+    DoCmd.SetWarnings False
+    
+    ' Step 1: Import data from SQL Server
+    Call ImportFromSQLServer
+    
+    ' Step 2: Validate data quality
+    Call ValidateDataQuality
+    
+    ' Step 3: Run business logic transformations
+    Call ApplyBusinessRules
+    
+    ' Step 4: Export to Excel for distribution
+    Call ExportToExcel
+    
+    DoCmd.SetWarnings True
+    MsgBox "Data refresh completed successfully!", vbInformation
+    Exit Sub
+    
+ErrorHandler:
+    DoCmd.SetWarnings True
+    MsgBox "Error: " & Err.Description, vbCritical
+End Sub
+
+' Import data from SQL Server
+Private Sub ImportFromSQLServer()
+    Dim conn As Object
+    Dim rs As Object
+    Dim sql As String
+    Dim db As DAO.Database
+    
+    Set conn = CreateObject("ADODB.Connection")
+    Set rs = CreateObject("ADODB.Recordset")
+    Set db = CurrentDb
+    
+    ' Connection string
+    conn.ConnectionString = "Provider=SQLOLEDB;Data Source=sql-server;" & _
+                           "Initial Catalog=CreditDB;Integrated Security=SSPI;"
+    conn.Open
+    
+    ' Import originations data
+    sql = "SELECT * FROM credit_originations WHERE application_date >= DATEADD(day, -30, GETDATE())"
+    rs.Open sql, conn
+    
+    ' Clear existing data
+    db.Execute "DELETE FROM tbl_Originations"
+    
+    ' Import records
+    Do While Not rs.EOF
+        db.Execute "INSERT INTO tbl_Originations (ApplicationID, CustomerName, " & _
+                  "LoanAmount, Status, ApplicationDate) VALUES (" & _
+                  rs("application_id") & ", '" & rs("customer_name") & "', " & _
+                  rs("loan_amount") & ", '" & rs("status") & "', " & _
+                  "#" & rs("application_date") & "#)"
+        rs.MoveNext
+    Loop
+    
+    rs.Close
+    conn.Close
+    
+    Set rs = Nothing
+    Set conn = Nothing
+    Set db = Nothing
+End Sub
+
+' Validate data quality
+Private Sub ValidateDataQuality()
+    Dim db As DAO.Database
+    Dim rs As DAO.Recordset
+    Dim errorCount As Integer
+    
+    Set db = CurrentDb
+    Set rs = db.OpenRecordset("tbl_Originations")
+    
+    errorCount = 0
+    
+    Do While Not rs.EOF
+        ' Check for missing critical fields
+        If IsNull(rs("CustomerName")) Or IsNull(rs("LoanAmount")) Then
+            rs.Edit
+            rs("ValidationStatus") = "Error: Missing Data"
+            rs.Update
+            errorCount = errorCount + 1
+        
+        ' Check for invalid loan amounts
+        ElseIf rs("LoanAmount") <= 0 Or rs("LoanAmount") > 10000000 Then
+            rs.Edit
+            rs("ValidationStatus") = "Error: Invalid Amount"
+            rs.Update
+            errorCount = errorCount + 1
+        
+        Else
+            rs.Edit
+            rs("ValidationStatus") = "Valid"
+            rs.Update
+        End If
+        
+        rs.MoveNext
+    Loop
+    
+    rs.Close
+    Set rs = Nothing
+    Set db = Nothing
+    
+    If errorCount > 0 Then
+        MsgBox errorCount & " validation errors found. Check ValidationStatus field.", vbExclamation
+    End If
+End Sub
+
+' Apply business rules and calculations
+Private Sub ApplyBusinessRules()
+    Dim db As DAO.Database
+    
+    Set db = CurrentDb
+    
+    ' Calculate risk scores
+    db.Execute "UPDATE tbl_Originations SET RiskScore = " & _
+              "SWITCH(LoanAmount < 100000, 'Low', " & _
+              "LoanAmount >= 100000 AND LoanAmount < 500000, 'Medium', " & _
+              "LoanAmount >= 500000, 'High')"
+    
+    ' Calculate approval probability
+    db.Execute "UPDATE tbl_Originations SET ApprovalProbability = " & _
+              "SWITCH(Status = 'Approved', 100, " & _
+              "Status = 'Pending', 50, " & _
+              "Status = 'Rejected', 0)"
+    
+    Set db = Nothing
+End Sub
+
+' Export to Excel
+Private Sub ExportToExcel()
+    Dim excelApp As Object
+    Dim wb As Object
+    Dim ws As Object
+    Dim db As DAO.Database
+    Dim rs As DAO.Recordset
+    Dim row As Integer
+    
+    Set excelApp = CreateObject("Excel.Application")
+    Set wb = excelApp.Workbooks.Add
+    Set ws = wb.Worksheets(1)
+    
+    Set db = CurrentDb
+    Set rs = db.OpenRecordset("SELECT * FROM tbl_Originations WHERE ValidationStatus = 'Valid'")
+    
+    ' Headers
+    ws.Cells(1, 1).Value = "Application ID"
+    ws.Cells(1, 2).Value = "Customer Name"
+    ws.Cells(1, 3).Value = "Loan Amount"
+    ws.Cells(1, 4).Value = "Status"
+    ws.Cells(1, 5).Value = "Risk Score"
+    
+    ' Format headers
+    ws.Range("A1:E1").Font.Bold = True
+    ws.Range("A1:E1").Interior.Color = RGB(68, 114, 196)
+    ws.Range("A1:E1").Font.Color = RGB(255, 255, 255)
+    
+    ' Data
+    row = 2
+    Do While Not rs.EOF
+        ws.Cells(row, 1).Value = rs("ApplicationID")
+        ws.Cells(row, 2).Value = rs("CustomerName")
+        ws.Cells(row, 3).Value = rs("LoanAmount")
+        ws.Cells(row, 4).Value = rs("Status")
+        ws.Cells(row, 5).Value = rs("RiskScore")
+        row = row + 1
+        rs.MoveNext
+    Loop
+    
+    ' Auto-fit columns
+    ws.Columns("A:E").AutoFit
+    
+    ' Save file
+    wb.SaveAs "C:\\Reports\\Credit_Originations_" & Format(Date, "yyyy-mm-dd") & ".xlsx"
+    wb.Close
+    excelApp.Quit
+    
+    rs.Close
+    Set rs = Nothing
+    Set db = Nothing
+    Set ws = Nothing
+    Set wb = Nothing
+    Set excelApp = Nothing
+End Sub`,
+
+      powerpoint: `' PowerPoint VBA - Automated Presentation Generation
+' Creates executive presentations with charts and data
+
+Sub GenerateCreditLifecyclePresentation()
+    On Error GoTo ErrorHandler
+    
+    Dim pptApp As PowerPoint.Application
+    Dim pptPres As PowerPoint.Presentation
+    Dim pptSlide As PowerPoint.Slide
+    Dim pptShape As PowerPoint.Shape
+    Dim pptChart As PowerPoint.Chart
+    
+    ' Create PowerPoint application
+    Set pptApp = New PowerPoint.Application
+    pptApp.Visible = True
+    
+    ' Create new presentation
+    Set pptPres = pptApp.Presentations.Add
+    
+    ' Slide 1: Title Slide
+    Set pptSlide = pptPres.Slides.Add(1, ppLayoutTitle)
+    pptSlide.Shapes.Title.TextFrame.TextRange.Text = "Credit Lifecycle Performance Report"
+    pptSlide.Shapes(2).TextFrame.TextRange.Text = "Business & Commercial Banking" & vbCrLf & _
+                                                   "Report Date: " & Format(Date, "mmmm dd, yyyy")
+    
+    ' Format title slide
+    With pptSlide.Shapes.Title.TextFrame.TextRange.Font
+        .Name = "Calibri"
+        .Size = 44
+        .Bold = True
+        .Color.RGB = RGB(68, 114, 196)
+    End With
+    
+    ' Slide 2: Originations Performance
+    Set pptSlide = pptPres.Slides.Add(2, ppLayoutTitleOnly)
+    pptSlide.Shapes.Title.TextFrame.TextRange.Text = "Originations Performance - Q4 2024"
+    
+    ' Add chart
+    Set pptShape = pptSlide.Shapes.AddChart2(227, xlColumnClustered, 50, 100, 600, 400)
+    Set pptChart = pptShape.Chart
+    
+    ' Populate chart data
+    With pptChart.ChartData.Workbook.Worksheets(1)
+        .Cells(1, 1).Value = "Month"
+        .Cells(1, 2).Value = "Applications"
+        .Cells(1, 3).Value = "Approvals"
+        
+        .Cells(2, 1).Value = "October"
+        .Cells(2, 2).Value = 450
+        .Cells(2, 3).Value = 380
+        
+        .Cells(3, 1).Value = "November"
+        .Cells(3, 2).Value = 520
+        .Cells(3, 3).Value = 445
+        
+        .Cells(4, 1).Value = "December"
+        .Cells(4, 2).Value = 490
+        .Cells(4, 3).Value = 425
+    End With
+    
+    ' Format chart
+    With pptChart
+        .HasTitle = True
+        .ChartTitle.Text = "Monthly Originations Trend"
+        .ChartTitle.Font.Size = 18
+        .ChartTitle.Font.Bold = True
+    End With
+    
+    ' Slide 3: Collections Root Cause Analysis
+    Set pptSlide = pptPres.Slides.Add(3, ppLayoutTitleOnly)
+    pptSlide.Shapes.Title.TextFrame.TextRange.Text = "Collections - Root Cause Analysis (Pareto)"
+    
+    ' Add Pareto chart
+    Set pptShape = pptSlide.Shapes.AddChart2(227, xlColumnClustered, 50, 100, 600, 400)
+    Set pptChart = pptShape.Chart
+    
+    ' Populate Pareto data
+    With pptChart.ChartData.Workbook.Worksheets(1)
+        .Cells(1, 1).Value = "Cause"
+        .Cells(1, 2).Value = "Cases"
+        .Cells(1, 3).Value = "Cumulative %"
+        
+        .Cells(2, 1).Value = "Job Loss"
+        .Cells(2, 2).Value = 145
+        .Cells(2, 3).Value = 42
+        
+        .Cells(3, 1).Value = "Medical Emergency"
+        .Cells(3, 2).Value = 98
+        .Cells(3, 3).Value = 70
+        
+        .Cells(4, 1).Value = "Business Failure"
+        .Cells(4, 2).Value = 67
+        .Cells(4, 3).Value = 90
+        
+        .Cells(5, 1).Value = "Other"
+        .Cells(5, 2).Value = 35
+        .Cells(5, 3).Value = 100
+    End With
+    
+    ' Add text box with insights
+    Set pptShape = pptSlide.Shapes.AddTextbox(msoTextOrientationHorizontal, 50, 520, 600, 60)
+    With pptShape.TextFrame.TextRange
+        .Text = "Key Insight: Top 3 causes account for 90% of delinquency cases. " & _
+               "Targeted intervention programs recommended for job loss and medical emergency segments."
+        .Font.Size = 14
+        .Font.Name = "Calibri"
+        .Font.Color.RGB = RGB(68, 114, 196)
+    End With
+    
+    ' Slide 4: Account Management KPIs
+    Set pptSlide = pptPres.Slides.Add(4, ppLayoutTitleOnly)
+    pptSlide.Shapes.Title.TextFrame.TextRange.Text = "Account Management - Portfolio Health"
+    
+    ' Add KPI table
+    Set pptShape = pptSlide.Shapes.AddTable(5, 3, 100, 120, 550, 300)
+    
+    With pptShape.Table
+        ' Headers
+        .Cell(1, 1).Shape.TextFrame.TextRange.Text = "Metric"
+        .Cell(1, 2).Shape.TextFrame.TextRange.Text = "Current"
+        .Cell(1, 3).Shape.TextFrame.TextRange.Text = "Target"
+        
+        ' Data
+        .Cell(2, 1).Shape.TextFrame.TextRange.Text = "Active Accounts"
+        .Cell(2, 2).Shape.TextFrame.TextRange.Text = "12,450"
+        .Cell(2, 3).Shape.TextFrame.TextRange.Text = "12,000"
+        
+        .Cell(3, 1).Shape.TextFrame.TextRange.Text = "Portfolio Value (R millions)"
+        .Cell(3, 2).Shape.TextFrame.TextRange.Text = "R 2,340"
+        .Cell(3, 3).Shape.TextFrame.TextRange.Text = "R 2,200"
+        
+        .Cell(4, 1).Shape.TextFrame.TextRange.Text = "Avg Credit Score"
+        .Cell(4, 2).Shape.TextFrame.TextRange.Text = "685"
+        .Cell(4, 3).Shape.TextFrame.TextRange.Text = "680"
+        
+        .Cell(5, 1).Shape.TextFrame.TextRange.Text = "High Risk Accounts %"
+        .Cell(5, 2).Shape.TextFrame.TextRange.Text = "8.5%"
+        .Cell(5, 3).Shape.TextFrame.TextRange.Text = "<10%"
+    End With
+    
+    ' Format table
+    For i = 1 To 5
+        For j = 1 To 3
+            With pptShape.Table.Cell(i, j).Shape.TextFrame.TextRange.Font
+                .Size = 14
+                .Name = "Calibri"
+            End With
+        Next j
+    Next i
+    
+    ' Slide 5: Recommendations
+    Set pptSlide = pptPres.Slides.Add(5, ppLayoutText)
+    pptSlide.Shapes.Title.TextFrame.TextRange.Text = "Strategic Recommendations"
+    
+    With pptSlide.Shapes(2).TextFrame.TextRange
+        .Text = "1. Implement automated early warning system for collections" & vbCrLf & vbCrLf & _
+               "2. Develop targeted intervention programs for top 3 delinquency causes" & vbCrLf & vbCrLf & _
+               "3. Enhance originations approval process to maintain 85%+ approval rate" & vbCrLf & vbCrLf & _
+               "4. Expand portfolio management capacity to handle growth" & vbCrLf & vbCrLf & _
+               "5. Continue automation initiatives to reduce reporting time"
+        .Font.Size = 18
+        .Font.Name = "Calibri"
+    End With
+    
+    ' Save presentation
+    pptPres.SaveAs "C:\\Reports\\Credit_Lifecycle_Presentation_" & Format(Date, "yyyy-mm-dd") & ".pptx"
+    
+    MsgBox "Presentation generated successfully!", vbInformation
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error generating presentation: " & Err.Description, vbCritical
+End Sub`,
+    },
+  },
 }
 
 export default function Portfolio() {
@@ -1930,7 +3448,7 @@ export default function Portfolio() {
       {/* Hero Section */}
       <section
         id="home"
-        className="min-h-screen flex items-center justify-center px-4 pt-20 relative py-20 px-4 text-center bg-gradient-to-br from-muted to-card pt-32"
+        className="min-h-screen flex items-center justify-center px-4 relative py-20 px-4 text-center bg-gradient-to-br from-muted to-card pt-32"
       >
         <div className="max-w-4xl mx-auto">
           <div className="mb-8">
@@ -1955,9 +3473,9 @@ export default function Portfolio() {
                 Get In Touch
               </a>
             </Button>
-            <Button variant="outline" size="lg" onClick={() => setIsResumeOpen(true)}>
-              <ExternalLink className="mr-2 h-4 w-4" />
-              View Resume
+            <Button variant="outline" size="lg" className="bg-transparent" onClick={() => setIsResumeOpen(true)}>
+              <FileText className="h-5 w-5" />
+              View CV
             </Button>
           </div>
         </div>
@@ -2233,11 +3751,11 @@ export default function Portfolio() {
                   <div>
                     <CardTitle className="text-xl">BI Solutions Architect - Data & Analytics</CardTitle>
                     <CardDescription className="text-base">
-                      TotalEnergies • Finance & IS • Rosebank Johannesburg
+                      Retail and B2B • TotalEnergies • 2022 - 2024
                     </CardDescription>
                   </div>
                   <Badge variant="outline" className="w-fit">
-                    2022 - 2024
+                    2 Years
                   </Badge>
                 </div>
               </CardHeader>
@@ -2272,7 +3790,7 @@ export default function Portfolio() {
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
                     <CardTitle className="text-xl">Senior Data Engineer & Analytics Lead</CardTitle>
-                    <CardDescription className="text-base">TechCorp Solutions • 2019 - 2022</CardDescription>
+                    <CardDescription className="text-base">Retail and B2B • TotalEnergies</CardDescription>
                   </div>
                   <Badge variant="outline" className="w-fit">
                     3 Years
@@ -2312,11 +3830,13 @@ export default function Portfolio() {
               <CardContent>
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   <li>• Built and maintained ETL pipelines processing 100GB+ daily using Apache Airflow and Python</li>
-                  <li>• Developed statistical models in R/SAS for customer behavior analysis and churn prediction</li>
+                  <li>
+                    • Developed statistical models in Python/R for customer behavior analysis and churn prediction
+                  </li>
                   <li>
                     • Created executive dashboards in Tableau combining complex data signals into actionable insights
                   </li>
-                  <li>• Collaborated with data scientists to productionize ML models serving 1M+ predictions daily</li>
+                  <li>• Collaborated with data scientist to productionize ML models serving 1M+ predictions daily</li>
                 </ul>
               </CardContent>
             </Card>
@@ -3006,7 +4526,7 @@ export default function Portfolio() {
                 <div className="space-y-4">
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     Built a Medallion architecture data platform on Azure Data Lake and SQL DW, integrating data from 8+
-                    HRIS systems. Enabled accurate workforce analytics, ensured compliance, and automated executive
+                    HRIS systems. Enabled advanced workforce analytics, ensured compliance, and automated executive
                     reporting, reducing delays from 2 weeks to 1 day.
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -3172,6 +4692,360 @@ export default function Portfolio() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Insurance Analytics Project */}
+            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-xl mb-2">Insurance Analytics & Insights Platform</CardTitle>
+                    <CardDescription className="text-base">
+                      Built comprehensive analytics platform for insurance insights, claims analysis, and customer
+                      segmentation
+                    </CardDescription>
+                  </div>
+                  <TrendingUp className="h-8 w-8 text-accent flex-shrink-0" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Developed an end-to-end analytics platform processing data from multiple insurance systems, enabling
+                    real-time insights on policy performance, claims trends, and customer behavior. Reduced reporting
+                    time from 7 days to 1 day and enabled data-driven decision making across the organization.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">SQL Server</Badge>
+                    <Badge variant="secondary">Python</Badge>
+                    <Badge variant="secondary">Power BI</Badge>
+                    <Badge variant="secondary">Azure</Badge>
+                    <Badge variant="secondary">Machine Learning</Badge>
+                  </div>
+                  <div className="pt-2">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <ExternalLink className="mr-2 h-3 w-3" />
+                          View Details
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle className="text-2xl font-serif">
+                            {projectDetails["insurance-analytics"].title}
+                          </DialogTitle>
+                        </DialogHeader>
+                        <Tabs defaultValue="problem" className="w-full">
+                          <TabsList className="grid w-full grid-cols-4">
+                            <TabsTrigger value="problem">Problem</TabsTrigger>
+                            <TabsTrigger value="architecture">Architecture</TabsTrigger>
+                            <TabsTrigger value="solution">Solution</TabsTrigger>
+                            <TabsTrigger value="code">Code</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="problem" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Problem Statement</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <p className="text-muted-foreground leading-relaxed">
+                                  {projectDetails["insurance-analytics"].problemStatement}
+                                </p>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="architecture" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>System Architecture</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <img
+                                  src={projectDetails["insurance-analytics"].architecture || "/placeholder.svg"}
+                                  alt="Insurance Analytics Architecture"
+                                  className="w-full rounded-lg border"
+                                />
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="solution" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Technical Solution</CardTitle>
+                              </CardHeader>
+                              <CardContent className="space-y-4">
+                                <div className="grid md:grid-cols-2 gap-4">
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Key Components:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• SQL Server for relational data modeling</li>
+                                      <li>• Python for data processing & ML models</li>
+                                      <li>• Power BI for interactive dashboards</li>
+                                      <li>• Azure cloud infrastructure</li>
+                                      <li>• Root cause analysis algorithms</li>
+                                      <li>• Customer segmentation & churn prediction</li>
+                                    </ul>
+                                  </div>
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Results Achieved:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• Reduced reporting time from 7 days to 1 day</li>
+                                      <li>• 85% accuracy in churn prediction models</li>
+                                      <li>• Identified top 20% of claims causes (Pareto)</li>
+                                      <li>• Enabled proactive risk management</li>
+                                      <li>• Improved customer segmentation insights</li>
+                                    </ul>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="code" className="space-y-4">
+                            <Tabs defaultValue="sql" className="w-full">
+                              <TabsList>
+                                <TabsTrigger value="sql">SQL</TabsTrigger>
+                                <TabsTrigger value="python">Python</TabsTrigger>
+                                <TabsTrigger value="powerbi">Power BI</TabsTrigger>
+                              </TabsList>
+                              <TabsContent value="sql">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <Database className="h-5 w-5" />
+                                      SQL - Insurance Analytics Data Models
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                      <code>{projectDetails["insurance-analytics"].solution.sql}</code>
+                                    </pre>
+                                  </CardContent>
+                                </Card>
+                              </TabsContent>
+                              <TabsContent value="python">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <Code className="h-5 w-5" />
+                                      Python - Analytics & Machine Learning
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                      <code>{projectDetails["insurance-analytics"].solution.python}</code>
+                                    </pre>
+                                  </CardContent>
+                                </Card>
+                              </TabsContent>
+                              <TabsContent value="powerbi">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <BarChart3 className="h-5 w-5" />
+                                      Power BI - DAX Measures & KPIs
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                      <code>{projectDetails["insurance-analytics"].solution.powerbi}</code>
+                                    </pre>
+                                  </CardContent>
+                                </Card>
+                              </TabsContent>
+                            </Tabs>
+                          </TabsContent>
+                        </Tabs>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Credit Lifecycle BI Project */}
+            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-xl mb-2">Credit Lifecycle BI & Reporting Platform</CardTitle>
+                    <CardDescription className="text-base">
+                      Automated BI platform for credit lifecycle insights across originations, account management, and
+                      collections
+                    </CardDescription>
+                  </div>
+                  <FileSpreadsheet className="h-8 w-8 text-accent flex-shrink-0" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Built a comprehensive BI platform for Business & Commercial Banking, automating credit lifecycle
+                    reporting and reducing report generation time from 7 days to 1 day. Integrated data from multiple
+                    systems using SQL, Python, MS Access, and PowerPoint for executive presentations.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">SQL Server</Badge>
+                    <Badge variant="secondary">Python</Badge>
+                    <Badge variant="secondary">MS Access</Badge>
+                    <Badge variant="secondary">PowerPoint VBA</Badge>
+                    <Badge variant="secondary">Excel Automation</Badge>
+                  </div>
+                  <div className="pt-2">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <ExternalLink className="mr-2 h-3 w-3" />
+                          View Details
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle className="text-2xl font-serif">
+                            {projectDetails["credit-lifecycle-bi"].title}
+                          </DialogTitle>
+                        </DialogHeader>
+                        <Tabs defaultValue="problem" className="w-full">
+                          <TabsList className="grid w-full grid-cols-4">
+                            <TabsTrigger value="problem">Problem</TabsTrigger>
+                            <TabsTrigger value="architecture">Architecture</TabsTrigger>
+                            <TabsTrigger value="solution">Solution</TabsTrigger>
+                            <TabsTrigger value="code">Code</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="problem" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Problem Statement</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <p className="text-muted-foreground leading-relaxed">
+                                  {projectDetails["credit-lifecycle-bi"].problemStatement}
+                                </p>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="architecture" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>System Architecture</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <img
+                                  src={projectDetails["credit-lifecycle-bi"].architecture || "/placeholder.svg"}
+                                  alt="Credit Lifecycle BI Architecture"
+                                  className="w-full rounded-lg border"
+                                />
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="solution" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Technical Solution</CardTitle>
+                              </CardHeader>
+                              <CardContent className="space-y-4">
+                                <div className="grid md:grid-cols-2 gap-4">
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Key Components:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• SQL Server for data warehousing</li>
+                                      <li>• Python for automation & report generation</li>
+                                      <li>• MS Access for data management & validation</li>
+                                      <li>• PowerPoint VBA for executive presentations</li>
+                                      <li>• Excel automation with openpyxl</li>
+                                      <li>• Root cause analysis & Pareto charts</li>
+                                    </ul>
+                                  </div>
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Results Achieved:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• Reduced reporting time from 7 days to 1 day</li>
+                                      <li>• 100% automation of daily production reports</li>
+                                      <li>• Improved data quality and consistency</li>
+                                      <li>• Enabled real-time portfolio visibility</li>
+                                      <li>• Standardized reporting across teams</li>
+                                    </ul>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="code" className="space-y-4">
+                            <Tabs defaultValue="sql" className="w-full">
+                              <TabsList>
+                                <TabsTrigger value="sql">SQL</TabsTrigger>
+                                <TabsTrigger value="python">Python</TabsTrigger>
+                                <TabsTrigger value="msaccess">MS Access</TabsTrigger>
+                                <TabsTrigger value="powerpoint">PowerPoint</TabsTrigger>
+                              </TabsList>
+                              <TabsContent value="sql">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <Database className="h-5 w-5" />
+                                      SQL - Credit Lifecycle Analytics
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                      <code>{projectDetails["credit-lifecycle-bi"].solution.sql}</code>
+                                    </pre>
+                                  </CardContent>
+                                </Card>
+                              </TabsContent>
+                              <TabsContent value="python">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <Code className="h-5 w-5" />
+                                      Python - Automated Report Generation
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                      <code>{projectDetails["credit-lifecycle-bi"].solution.python}</code>
+                                    </pre>
+                                  </CardContent>
+                                </Card>
+                              </TabsContent>
+                              <TabsContent value="msaccess">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <Server className="h-5 w-5" />
+                                      MS Access VBA - Data Management
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                      <code>{projectDetails["credit-lifecycle-bi"].solution.msaccess}</code>
+                                    </pre>
+                                  </CardContent>
+                                </Card>
+                              </TabsContent>
+                              <TabsContent value="powerpoint">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <FileSpreadsheet className="h-5 w-5" />
+                                      PowerPoint VBA - Executive Presentations
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                      <code>{projectDetails["credit-lifecycle-bi"].solution.powerpoint}</code>
+                                    </pre>
+                                  </CardContent>
+                                </Card>
+                              </TabsContent>
+                            </Tabs>
+                          </TabsContent>
+                        </Tabs>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>
@@ -3239,7 +5113,7 @@ export default function Portfolio() {
       <Dialog open={isResumeOpen} onOpenChange={setIsResumeOpen}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-3xl font-serif">Resume - Stanton Edwards</DialogTitle>
+            <DialogTitle className="text-3xl font-serif">CV - Stanton Edwards</DialogTitle>
           </DialogHeader>
           <div className="space-y-6 print:space-y-4">
             {/* Contact Information */}
@@ -3355,7 +5229,7 @@ export default function Portfolio() {
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <h3 className="font-bold text-lg">Senior Data Engineer & Analytics Lead</h3>
-                      <p className="text-sm text-muted-foreground">TechCorp Solutions</p>
+                      <p className="text-sm text-muted-foreground">Retail and B2B • TotalEnergies</p>
                     </div>
                     <span className="text-sm text-muted-foreground">2019 - 2022</span>
                   </div>
@@ -3376,8 +5250,11 @@ export default function Portfolio() {
                   </div>
                   <ul className="text-sm text-muted-foreground space-y-1 ml-4 list-disc">
                     <li>Built ETL pipelines processing 100GB+ daily using Apache Airflow and Python</li>
-                    <li>Developed statistical models in R/SAS for customer behavior analysis and churn prediction</li>
+                    <li>
+                      Developed statistical models in Python/R for customer behavior analysis and churn prediction
+                    </li>
                     <li>Created executive dashboards in Tableau combining data signals into actionable insights</li>
+                    <li>Collaborated with data scientist to productionize ML models serving 1M+ predictions daily</li>
                   </ul>
                 </div>
               </div>

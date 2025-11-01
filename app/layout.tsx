@@ -10,12 +10,16 @@ const playfairDisplay = Playfair_Display({
   subsets: ["latin"],
   variable: "--font-playfair-display",
   weight: ["400", "700"],
+  display: "swap",
+  fallback: ["Georgia", "serif"],
 })
 
 const sourceSansPro = Source_Sans_3({
   subsets: ["latin"],
   variable: "--font-source-sans-pro",
   weight: ["400", "600"],
+  display: "swap",
+  fallback: ["system-ui", "sans-serif"],
 })
 
 export const metadata: Metadata = {

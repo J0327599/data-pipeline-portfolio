@@ -10,22 +10,18 @@ const playfairDisplay = Playfair_Display({
   subsets: ["latin"],
   variable: "--font-playfair-display",
   weight: ["400", "700"],
-  display: "swap",
-  fallback: ["Georgia", "serif"],
 })
 
 const sourceSansPro = Source_Sans_3({
   subsets: ["latin"],
   variable: "--font-source-sans-pro",
   weight: ["400", "600"],
-  display: "swap",
-  fallback: ["system-ui", "sans-serif"],
 })
 
 export const metadata: Metadata = {
-  title: "Alex Chen - Senior Data Engineer",
+  title: "Stanton Edwards - Senior Data Engineer",
   description:
-    "Portfolio of Alex Chen, Senior Data Engineer specializing in big data, analytics, and cloud infrastructure",
+    "Portfolio of Stanton Edwards, Senior Data Engineer specializing in big data, analytics, and cloud infrastructure",
   generator: "v0.app",
 }
 

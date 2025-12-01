@@ -1,5 +1,7 @@
 "use client"
 
+import { DialogDescription } from "@/components/ui/dialog"
+
 import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,24 +14,22 @@ import {
   Brain,
   Briefcase,
   Cloud,
-  Cpu,
   Code,
+  Cpu,
   Database,
   ExternalLink,
+  FileSpreadsheet,
+  FileText,
   FolderOpen,
   Home,
   Mail,
-  MapPin,
   Menu,
   MessageSquare,
-  Phone,
-  Server,
   TrendingUp,
   Users,
   X,
+  Zap,
   BarChart3,
-  FileText,
-  FileSpreadsheet,
 } from "lucide-react"
 
 // Define ProjectDetail interface
@@ -37,16 +37,7 @@ interface ProjectDetail {
   title: string
   problemStatement: string
   architecture: string | undefined
-  solution: {
-    sql?: string
-    python?: string
-    scala?: string
-    yaml?: string
-    cql?: string
-    r?: string
-    msaccess?: string
-    powerpoint?: string
-  }
+  solution: string | Record<string, string> // Union type to handle both string and object solutions
 }
 
 const projectDetails: Record<string, ProjectDetail> = {
@@ -55,8 +46,7 @@ const projectDetails: Record<string, ProjectDetail> = {
     problemStatement:
       "Financial institutions face the challenge of detecting fraudulent transactions in real-time while minimizing false positives that disrupt legitimate customer transactions. Traditional batch processing systems couldn't meet the sub-second response time requirements needed for real-time fraud prevention.",
     architecture: "/real-time-fraud-detection-architecture-diagram-sho.jpg",
-    solution: {
-      python: `# Real-time fraud detection using Spark Streaming
+    solution: `# Real-time fraud detection using Spark Streaming
 from pyspark.streaming import StreamingContext
 from pyspark.sql import SparkSession
 from pyspark.ml.classification import RandomForestClassifier
@@ -91,104 +81,13 @@ class FraudDetectionPipeline:
             'fraud_score': fraud_score,
             'timestamp': transaction['timestamp']
         }`,
-      sql: `-- Fraud detection feature engineering queries
-WITH transaction_features AS (
-  SELECT 
-    transaction_id,
-    user_id,
-    amount,
-    merchant_category,
-    -- Time-based features
-    EXTRACT(HOUR FROM transaction_time) as hour_of_day,
-    EXTRACT(DOW FROM transaction_time) as day_of_week,
-    
-    -- User behavior features
-    COUNT(*) OVER (
-      PARTITION BY user_id 
-      ORDER BY transaction_time 
-      RANGE BETWEEN INTERVAL '1 hour' PRECEDING AND CURRENT ROW
-    ) as transactions_last_hour,
-    
-    AVG(amount) OVER (
-      PARTITION BY user_id 
-      ORDER BY transaction_time 
-      ROWS BETWEEN 10 PRECEDING AND 1 PRECEDING
-    ) as avg_amount_last_10,
-    
-    -- Location features
-    ST_Distance(
-      transaction_location, 
-       সুবিধlag(transaction_location) OVER (PARTITION BY user_id ORDER BY transaction_time)
-    ) as distance_from_last_transaction
-    
-  FROM transactions 
-  WHERE transaction_time >= NOW() - INTERVAL '24 hours'
-),
-
-fraud_scores AS (
-  SELECT *,
-    CASE 
-      WHEN amount > avg_amount_last_10 * 5 THEN 0.3
-      WHEN transactions_last_hour > 10 THEN 0.4
-      WHEN distance_from_last_transaction > 1000 THEN 0.2
-      ELSE 0.0
-    END as risk_score
-  FROM transaction_features
-)
-
-SELECT * FROM fraud_scores WHERE risk_score > 0.5;`,
-      scala: `// Kafka consumer for real-time transaction processing
-import org.apache.spark.streaming.kafka010._
-import org.apache.kafka.common.serialization.StringDeserializer
-
-object FraudDetectionStream {
-  def main(args: Array[String]): Unit = {
-    val spark = SparkSession.builder()
-      .appName("FraudDetectionStream")
-      .getOrCreate()
-    
-    val ssc = new StreamingContext(spark.sparkContext, Seconds(1))
-    
-    val kafkaParams = Map[String, Object](
-      "bootstrap.servers" -> "kafka-broker:9092",
-      "key.deserializer" -> classOf[StringDeserializer],
-      "value.deserializer" -> classOf[StringDeserializer],
-      "group.id" -> "fraud-detection-group"
-    )
-    
-    val topics = Array("transactions")
-    val stream = KafkaUtils.createDirectStream[String, String](
-      ssc,
-      PreferConsistent,
-      Subscribe[String, String](topics, kafkaParams)
-    )
-    
-    // Process transactions and detect fraud
-    val fraudDetections = stream.map(record => {
-      val transaction = parseTransaction(record.value())
-      val fraudScore = predictFraud(transaction)
-      (transaction.id, fraudScore)
-    })
-    
-    fraudDetections.foreachRDD { rdd =>
-      rdd.filter(_._2 > 0.8).foreach { case (id, score) =>
-        alertFraudTeam(id, score)
-      }
-    }
-    
-    ssc.start()
-    ssc.awaitTermination()
-  }
-}`,
-    },
   },
-  "data-warehouse": {
+  "customer-warehouse": {
     title: "Customer Analytics Data Warehouse",
     problemStatement:
       "The marketing team needed a centralized data warehouse to analyze customer behavior across multiple touchpoints (web, mobile, email, social media). Existing data was siloed across different systems, making it impossible to get a unified view of customer journeys and measure marketing campaign effectiveness.",
     architecture: "/data-warehouse-architecture-diagram-showing-etl-pi.jpg",
-    solution: {
-      sql: `-- Customer 360 view with behavioral analytics
+    solution: `-- Customer 360 view with behavioral analytics
 CREATE TABLE customer_360 AS
 WITH customer_base AS (
   SELECT 
@@ -246,255 +145,13 @@ SELECT
 FROM customer_base cb
 LEFT JOIN transaction_summary ts ON cb.customer_id = ts.customer_id
 LEFT JOIN engagement_metrics em ON cb.customer_id = em.customer_id;`,
-      python: `# Airflow DAG for customer data warehouse ETL
-from airflow import DAG
-from airflow.operators.python_operator import PythonOperator
-from airflow.operators.postgres_operator import PostgresOperator
-from datetime import datetime, timedelta
-import pandas as pd
-import boto3
-
-default_args = {
-    'owner': 'data-team',
-    'depends_on_past': False,
-    'start_date': datetime(2024, 1, 1),
-    'email_on_failure': True,
-    'email_on_retry': False,
-    'retries': 2,
-    'retry_delay': timedelta(minutes=5)
-}
-
-dag = DAG(
-    'customer_analytics_etl',
-    default_args=default_args,
-    description='Customer analytics data warehouse ETL',
-    schedule_interval='@daily',
-    catchup=False
-)
-
-def extract_customer_data(**context):
-    """Extract customer data from multiple sources"""
-    # Extract from CRM system
-    crm_data = extract_from_crm()
-    
-    # Extract from e-commerce platform
-    ecommerce_data = extract_from_ecommerce()
-    
-    # Extract from marketing automation
-    marketing_data = extract_from_marketing_platform()
-    
-    # Store raw data in S3
-    s3_client = boto3.client('s3')
-    
-    # Upload to S3 staging area
-    s3_client.put_object(
-        Bucket='customer-data-lake',
-        Key=f'raw/crm/{context["ds"]}/customers.parquet',
-        Body=crm_data.to_parquet()
-    )
-    
-    return f"Extracted {len(crm_data)} customer records"
-
-def transform_customer_data(**context):
-    """Transform and clean customer data"""
-    s3_client = boto3.client('s3')
-    
-    # Read raw data from S3
-    crm_data = pd.read_parquet(f's3://customer-data-lake/raw/crm/{context["ds"]}/customers.parquet')
-    
-    # Data cleaning and transformation
-    transformed_data = (crm_data
-        .drop_duplicates(subset=['customer_id'])
-        .fillna({'customer_segment': 'Unknown'})
-        .assign(
-            full_name=lambda x: x['first_name'] + ' ' + x['last_name'],
-            registration_month=lambda x: pd.to_datetime(x['registration_date']).dt.to_period('M')
-        )
-    )
-    
-    # Data quality checks
-    assert transformed_data['customer_id'].nunique() == len(transformed_data), "Duplicate customer IDs found"
-    assert transformed_data['email'].str.contains('@').all(), "Invalid email addresses found"
-    
-    # Save transformed data
-    transformed_data.to_parquet(f's3://customer-data-lake/transformed/customers/{context["ds"]}/customers.parquet')
-    
-    return f"Transformed {len(transformed_data)} customer records"
-
-# Define tasks
-extract_task = PythonOperator(
-    task_id='extract_customer_data',
-    python_callable=extract_customer_data,
-    dag=dag
-)
-
-transform_task = PythonOperator(
-    task_id='transform_customer_data',
-    python_callable=transform_customer_data,
-    dag=dag
-)
-
-load_task = PostgresOperator(
-    task_id='load_to_redshift',
-    postgres_conn_id='redshift_default',
-    sql='''
-        COPY customer_360 
-        FROM 's3://customer-data-lake/transformed/customers/{{ ds }}/customers.parquet'
-        IAM_ROLE 'arn:aws:iam::account:role/RedshiftRole'
-        FORMAT AS PARQUET;
-    ''',
-    dag=dag
-)
-
-# Set task dependencies
-extract_task >> transform_task >> load_task`,
-      yaml: `# dbt model for customer segmentation
-# models/marts/customer_segmentation.sql
-version: 2
-
-models:
-  - name: customer_segmentation
-    description: "Customer segmentation based on RFM analysis"
-    columns:
-      - name: customer_id
-        description: "Unique customer identifier"
-        tests:
-          - unique
-          - not_null
-      - name: rfm_segment
-        description: "RFM-based customer segment"
-        tests:
-          - accepted_values:
-              values: ['Champions', 'Loyal Customers', 'Potential Loyalists', 'At Risk', 'Cannot Lose Them']
-
-# dbt_project.yml configuration
-name: 'customer_analytics'
-version: '1.0.0'
-config-version: 2
-
-model-paths: ["models"]
-analysis-paths: ["analysis"]
-test-paths: ["tests"]
-seed-paths: ["data"]
-macro-paths: ["macros"]
-snapshot-paths: ["snapshots"]
-
-target-path: "target"
-clean-targets:
-  - "target"
-  - "dbt_packages"
-
-models:
-  customer_analytics:
-    staging:
-      +materialized: view
-    marts:
-      +materialized: table
-      +post-hook: "GRANT SELECT ON {{ this }} TO ROLE analyst_role"`,
-    },
   },
-  "iot-platform": {
+  "iot-processing": {
     title: "IoT Sensor Data Processing Platform",
     problemStatement:
       "Manufacturing facilities needed to process millions of IoT sensor readings per hour from industrial equipment to enable predictive maintenance and prevent costly downtime. The existing system couldn't handle the volume and velocity of sensor data, leading to delayed insights and missed maintenance opportunities.",
     architecture: "/iot-data-processing-architecture-with-kafka--spark.jpg",
     solution: {
-      python: `# IoT sensor data processing with Spark Streaming
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import *
-from pyspark.sql.types import *
-import json
-
-class IoTDataProcessor:
-    def __init__(self):
-        self.spark = SparkSession.builder \
-            .appName("IoTSensorProcessing") \
-            .config("spark.cassandra.connection.host", "cassandra-cluster") \
-            .getOrCreate()
-    
-    def process_sensor_stream(self):
-        # Define sensor data schema
-        sensor_schema = StructType([
-            StructField("sensor_id", StringType(), True),
-            StructField("equipment_id", StringType(), True),
-            StructField("timestamp", TimestampType(), True),
-            StructField("temperature", DoubleType(), True),
-            StructField("vibration", DoubleType(), True),
-            StructField("pressure", DoubleType(), True),
-            StructField("rotation_speed", DoubleType(), True)
-        ])
-        
-        # Read from Kafka stream
-        sensor_stream = self.spark \
-            .readStream \
-            .format("kafka") \
-            .option("kafka.bootstrap.servers", "kafka-cluster:9092") \
-            .option("subscribe", "sensor-data") \
-            .load()
-        
-        # Parse JSON data
-        parsed_data = sensor_stream.select(
-            from_json(col("value").cast("string"), sensor_schema).alias("data")
-        ).select("data.*")
-        
-        # Add derived features for anomaly detection
-        enriched_data = parsed_data.withColumn(
-            "temp_anomaly", 
-            when(col("temperature") > 85.0, 1).otherwise(0)
-        ).withColumn(
-            "vibration_anomaly",
-            when(col("vibration") > 2.5, 1).otherwise(0)
-        ).withColumn(
-            "processing_time",
-            current_timestamp()
-        )
-        
-        # Windowed aggregations for trend analysis
-        windowed_metrics = enriched_data \
-            .withWatermark("timestamp", "10 minutes") \
-            .groupBy(
-                window(col("timestamp"), "5 minutes"),
-                col("equipment_id")
-            ).agg(
-                avg("temperature").alias("avg_temperature"),
-                max("temperature").alias("max_temperature"),
-                avg("vibration").alias("avg_vibration"),
-                max("vibration").alias("max_vibration"),
-                sum("temp_anomaly").alias("temp_anomaly_count"),
-                sum("vibration_anomaly").alias("vibration_anomaly_count")
-            )
-        
-        # Write to Cassandra for real-time queries
-        query = enriched_data.writeStream \
-            .format("org.apache.spark.sql.cassandra") \
-            .option("keyspace", "iot_data") \
-            .option("table", "sensor_readings") \
-            .option("checkpointLocation", "/tmp/checkpoint") \
-            .start()
-        
-        return query
-    
-    def detect_equipment_anomalies(self, df):
-        """Detect equipment anomalies using statistical methods"""
-        # Calculate z-scores for anomaly detection
-        stats = df.select(
-            mean("temperature").alias("temp_mean"),
-            stddev("temperature").alias("temp_std"),
-            mean("vibration").alias("vib_mean"),
-            stddev("vibration").alias("vib_std")
-        ).collect()[0]
-        
-        anomalies = df.withColumn(
-            "temp_zscore",
-            abs(col("temperature") - stats["temp_mean"]) / stats["temp_std"]
-        ).withColumn(
-            "vib_zscore", 
-            abs(col("vibration") - stats["vib_mean"]) / stats["vib_std"]
-        ).filter(
-            (col("temp_zscore") > 3) | (col("vib_zscore") > 3)
-        )
-        
-        return anomalies`,
       scala: `// Fixed Scala code syntax and imports
 // Kafka Streams application for IoT data processing
 import org.apache.kafka.streams.scala._
@@ -650,7 +307,7 @@ CREATE TABLE equipment_metrics_5min (
 ) WITH CLUSTERING ORDER BY (window_start DESC)
   AND default_time_to_live = 7776000; -- 90 days TTL
 
--- Materialized view for recent alerts
+-- Materialized view for recent critical alerts
 CREATE MATERIALIZED VIEW recent_critical_alerts AS
   SELECT equipment_id, alert_id, timestamp, alert_type, message
   FROM equipment_alerts
@@ -665,6 +322,102 @@ CREATE MATERIALIZED VIEW recent_critical_alerts AS
 CREATE INDEX ON sensor_readings (sensor_id);
 CREATE INDEX ON equipment_alerts (alert_type);
 CREATE INDEX ON equipment_alerts (severity);`,
+      python: `# IoT sensor data processing with Spark Streaming
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import *
+from pyspark.sql.types import *
+import json
+
+class IoTDataProcessor:
+    def __init__(self):
+        self.spark = SparkSession.builder \
+            .appName("IoTSensorProcessing") \
+            .config("spark.cassandra.connection.host", "cassandra-cluster") \
+            .getOrCreate()
+    
+    def process_sensor_stream(self):
+        # Define sensor data schema
+        sensor_schema = StructType([
+            StructField("sensor_id", StringType(), True),
+            StructField("equipment_id", StringType(), True),
+            StructField("timestamp", TimestampType(), True),
+            StructField("temperature", DoubleType(), True),
+            StructField("vibration", DoubleType(), True),
+            StructField("pressure", DoubleType(), True),
+            StructField("rotation_speed", DoubleType(), True)
+        ])
+        
+        # Read from Kafka stream
+        sensor_stream = self.spark \
+            .readStream \
+            .format("kafka") \
+            .option("kafka.bootstrap.servers", "kafka-cluster:9092") \
+            .option("subscribe", "sensor-data") \
+            .load()
+        
+        # Parse JSON data
+        parsed_data = sensor_stream.select(
+            from_json(col("value").cast("string"), sensor_schema).alias("data")
+        ).select("data.*")
+        
+        # Add derived features for anomaly detection
+        enriched_data = parsed_data.withColumn(
+            "temp_anomaly", 
+            when(col("temperature") > 85.0, 1).otherwise(0)
+        ).withColumn(
+            "vibration_anomaly",
+            when(col("vibration") > 2.5, 1).otherwise(0)
+        ).withColumn(
+            "processing_time",
+            current_timestamp()
+        )
+        
+        # Windowed aggregations for trend analysis
+        windowed_metrics = enriched_data \
+            .withWatermark("timestamp", "10 minutes") \
+            .groupBy(
+                window(col("timestamp"), "5 minutes"),
+                col("equipment_id")
+            ).agg(
+                avg("temperature").alias("avg_temperature"),
+                max("temperature").alias("max_temperature"),
+                avg("vibration").alias("avg_vibration"),
+                max("vibration").alias("max_vibration"),
+                sum("temp_anomaly").alias("temp_anomaly_count"),
+                sum("vibration_anomaly").alias("vibration_anomaly_count")
+            )
+        
+        # Write to Cassandra for real-time queries
+        query = enriched_data.writeStream \
+            .format("org.apache.spark.sql.cassandra") \
+            .option("keyspace", "iot_data") \
+            .option("table", "sensor_readings") \
+            .option("checkpointLocation", "/tmp/checkpoint") \
+            .start()
+        
+        return query
+    
+    def detect_equipment_anomalies(self, df):
+        """Detect equipment anomalies using statistical methods"""
+        # Calculate z-scores for anomaly detection
+        stats = df.select(
+            mean("temperature").alias("temp_mean"),
+            stddev("temperature").alias("temp_std"),
+            mean("vibration").alias("vib_mean"),
+            stddev("vibration").alias("vib_std")
+        ).collect()[0]
+        
+        anomalies = df.withColumn(
+            "temp_zscore",
+            abs(col("temperature") - stats["temp_mean"]) / stats["temp_std"]
+        ).withColumn(
+            "vib_zscore", 
+            abs(col("vibration") - stats["vib_mean"]) / stats["vib_std"]
+        ).filter(
+            (col("temp_zscore") > 3) | (col("vib_zscore") > 3)
+        )
+        
+        return anomalies`,
     },
   },
   "risk-analytics": {
@@ -1943,7 +1696,6 @@ BEGIN
         WHERE c.claim_date BETWEEN @start_date AND @end_date
           AND (@product_type IS NULL OR p.product_type = @product_type)
     ),
-    
     root_cause_summary AS (
         SELECT 
             claim_cause,
@@ -2811,7 +2563,6 @@ SELECT
 FROM account_management am
 WHERE am.status = 'Active'
 GROUP BY am.portfolio_manager, am.product_line;`,
-
       python: `"""
 Credit Lifecycle BI Automation Platform
 Automated report generation and data processing
@@ -3460,7 +3211,7 @@ export default function Portfolio() {
           </div>
           <h1 className="text-5xl md:text-7xl font-serif font-bold mb-6 text-balance">Stanton Edwards</h1>
           <p className="text-xl md:text-2xl text-muted-foreground mb-8 text-pretty">
-            Senior Data Engineer | Big Data Enthusiast | Analytics Expert
+            BI Manager | Big Data Enthusiast | Analytics Expert | Senior Data Engineer
           </p>
           <p className="text-lg text-card-foreground max-w-2xl mx-auto mb-8 leading-relaxed text-pretty">
             Transforming raw data into actionable business insights through scalable infrastructure, advanced analytics,
@@ -3713,32 +3464,33 @@ export default function Portfolio() {
               <CardContent>
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   <li>
-                    • Lead a team of 25+ data scientists, analysts, and ML engineers across advanced analytics, AI/ML,
-                    and business intelligence functions
+                    • Lead a team of 12 data scientists, analysts, and ML engineers across advanced analytics, AI/ML,
+                    and business intelligence functions supporting TotalEnergies' energy transition strategy
                   </li>
                   <li>
-                    • Developed and executed enterprise analytics strategy aligned with Standard Bank Group's digital
-                    transformation, delivering R150M+ in measurable business value
+                    • Developed and executed enterprise analytics strategy aligned with TotalEnergies' digital
+                    transformation initiatives, delivering €120M+ in measurable business value across retail,
+                    commercial, and trading operations
                   </li>
                   <li>
-                    • Built best-in-class customer insights and personalization platform using ML/NLP, increasing
-                    customer retention by 28% and cross-sell conversion by 35%
+                    • Built best-in-class customer insights and personalization platform using ML/NLP for fuel retail
+                    operations, increasing customer retention by 28% and cross-sell conversion by 35%
                   </li>
                   <li>
-                    • Implemented real-time risk analytics and automated decision-making systems processing 5M+
-                    transactions daily with 99.2% accuracy
+                    • Implemented real-time risk analytics and automated decision-making systems for commodity trading,
+                    processing 5M+ transactions daily with 99.2% accuracy
                   </li>
                   <li>
                     • Established AI ethics framework and governance policies ensuring fairness, transparency, and POPIA
                     compliance across all ML models
                   </li>
                   <li>
-                    • Championed data-driven culture through executive dashboards (Tableau/Looker) and self-service
-                    analytics, enabling 500+ business users
+                    • Championed data-driven culture through Power BI dashboards and self-service analytics, enabling
+                    500+ business users across finance, operations, and commercial functions
                   </li>
                   <li>
-                    • Led predictive analytics initiatives for insurance underwriting and claims optimization, reducing
-                    loss ratios by 18% and improving operational efficiency by 40%
+                    • Led predictive analytics initiatives for energy demand forecasting and pricing optimization,
+                    reducing forecast errors by 22% and improving margin optimization by 18%
                   </li>
                 </ul>
               </CardContent>
@@ -3801,14 +3553,24 @@ export default function Portfolio() {
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   <li>
                     • Led analytics team of 8 engineers delivering advanced analytics solutions and ML model deployment
+                    for retail fuel stations and B2B energy clients
                   </li>
                   <li>
                     • Built customer segmentation and propensity models using Python/R, driving 45% improvement in
-                    marketing campaign ROI
+                    marketing campaign ROI and increasing customer lifetime value by 32%
+                  </li>
+                  <li>
+                    • Developed customer churn prediction models identifying at-risk accounts, enabling proactive
+                    retention strategies that reduced B2B customer attrition by 28%
+                  </li>
+                  <li>
+                    • Implemented personalized pricing engine for commercial clients based on consumption patterns,
+                    improving customer satisfaction scores by 40% while maintaining margins
                   </li>
                   <li>• Optimized Spark jobs reducing processing time by 70% and infrastructure costs by 45%</li>
                   <li>
-                    • Implemented real-time streaming analytics processing 50M+ events daily with sub-second latency
+                    • Implemented real-time streaming analytics processing 50M+ events daily with sub-second latency for
+                    fuel station transactions and loyalty programs
                   </li>
                   <li>• Established data quality frameworks and automated testing, reducing data incidents by 85%</li>
                 </ul>
@@ -3829,14 +3591,31 @@ export default function Portfolio() {
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li>
+                    • Led requirements gathering and stakeholder engagement sessions with C-level executives,
+                    translating complex business needs into technical solutions and data strategies
+                  </li>
+                  <li>
+                    • Conducted comprehensive process analysis and mapping, identifying bottlenecks and optimization
+                    opportunities that improved operational efficiency by 35%
+                  </li>
                   <li>• Built and maintained ETL pipelines processing 100GB+ daily using Apache Airflow and Python</li>
                   <li>
-                    • Developed statistical models in Python/R for customer behavior analysis and churn prediction
+                    • Developed statistical models in Python/R for customer behavior analysis and churn prediction,
+                    providing actionable insights that informed strategic business decisions
                   </li>
                   <li>
-                    • Created executive dashboards in Tableau combining complex data signals into actionable insights
+                    • Created executive dashboards in Tableau combining complex data signals into actionable insights,
+                    facilitating data-driven decision-making across multiple business units
                   </li>
-                  <li>• Collaborated with data scientist to productionize ML models serving 1M+ predictions daily</li>
+                  <li>
+                    • Performed cost-benefit analysis and ROI modeling for proposed initiatives, ensuring alignment with
+                    business objectives and optimal resource allocation
+                  </li>
+                  <li>
+                    • Collaborated with data scientist to productionize ML models serving 1M+ predictions daily while
+                    maintaining comprehensive documentation and user acceptance testing
+                  </li>
                 </ul>
               </CardContent>
             </Card>
@@ -3849,1020 +3628,6 @@ export default function Portfolio() {
         <div className="max-w-6xl mx-auto">
           <h2 className="text-4xl font-serif font-bold text-center mb-12 text-balance">Featured Projects</h2>
           <div className="grid md:grid-cols-2 gap-8">
-            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-xl mb-2">Real-time Fraud Detection Pipeline</CardTitle>
-                    <CardDescription className="text-base">
-                      Built a scalable real-time fraud detection system processing 1M+ transactions daily
-                    </CardDescription>
-                  </div>
-                  <BarChart3 className="h-8 w-8 text-accent flex-shrink-0" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Designed and implemented a real-time fraud detection pipeline using Apache Kafka, Spark Streaming,
-                    and machine learning models. Reduced false positives by 40% and improved detection accuracy to
-                    98.5%.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary">Apache Kafka</Badge>
-                    <Badge variant="secondary">Spark Streaming</Badge>
-                    <Badge variant="secondary">Python</Badge>
-                    <Badge variant="secondary">AWS EMR</Badge>
-                    <Badge variant="secondary">PostgreSQL</Badge>
-                  </div>
-                  <div className="pt-2">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm" onClick={() => setSelectedProject("fraud-detection")}>
-                          <ExternalLink className="mr-2 h-3 w-3" />
-                          View Details
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                          <DialogTitle className="text-2xl font-serif">
-                            {projectDetails["fraud-detection"].title}
-                          </DialogTitle>
-                        </DialogHeader>
-                        <Tabs defaultValue="problem" className="w-full">
-                          <TabsList className="grid w-full grid-cols-4">
-                            <TabsTrigger value="problem">Problem</TabsTrigger>
-                            <TabsTrigger value="architecture">Architecture</TabsTrigger>
-                            <TabsTrigger value="solution">Solution</TabsTrigger>
-                            <TabsTrigger value="code">Code</TabsTrigger>
-                          </TabsList>
-                          <TabsContent value="problem" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>Problem Statement</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <p className="text-muted-foreground leading-relaxed">
-                                  {projectDetails["fraud-detection"].problemStatement}
-                                </p>
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="architecture" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>System Architecture</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <img
-                                  src={projectDetails["fraud-detection"].architecture || "/placeholder.svg"}
-                                  alt="Fraud Detection Architecture"
-                                  className="w-full rounded-lg border"
-                                />
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="solution" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>Technical Solution</CardTitle>
-                              </CardHeader>
-                              <CardContent className="space-y-4">
-                                <div className="grid md:grid-cols-2 gap-4">
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Key Components:</h4>
-                                    <ul className="text-sm text-muted-foreground space-y-1">
-                                      <li>• Real-time data ingestion with Apache Kafka</li>
-                                      <li>• Stream processing using Spark Streaming</li>
-                                      <li>• Machine learning models for fraud detection</li>
-                                      <li>• PostgreSQL for transaction storage</li>
-                                      <li>• AWS EMR for scalable processing</li>
-                                    </ul>
-                                  </div>
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Results Achieved:</h4>
-                                    <ul className="text-sm text-muted-foreground space-y-1">
-                                      <li>• 98.5% fraud detection accuracy</li>
-                                      <li>• 40% reduction in false positives</li>
-                                      <li>• Sub-second processing latency</li>
-                                      <li>• 1M+ transactions processed daily</li>
-                                      <li>• 99.9% system uptime</li>
-                                    </ul>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="code" className="space-y-4">
-                            <Tabs defaultValue="python" className="w-full">
-                              <TabsList>
-                                <TabsTrigger value="python">Python</TabsTrigger>
-                                <TabsTrigger value="sql">SQL</TabsTrigger>
-                                <TabsTrigger value="scala">Scala</TabsTrigger>
-                              </TabsList>
-                              <TabsContent value="python">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <Code className="h-5 w-5" />
-                                      Python - Spark Streaming Implementation
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["fraud-detection"].solution.python}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                              <TabsContent value="sql">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <Database className="h-5 w-5" />
-                                      SQL - Feature Engineering
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["fraud-detection"].solution.sql}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                              <TabsContent value="scala">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <Server className="h-5 w-5" />
-                                      Scala - Kafka Streams
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["fraud-detection"].solution.scala}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                            </Tabs>
-                          </TabsContent>
-                        </Tabs>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-xl mb-2">Customer Analytics Data Warehouse</CardTitle>
-                    <CardDescription className="text-base">
-                      Architected a comprehensive data warehouse for customer behavior analytics
-                    </CardDescription>
-                  </div>
-                  <Server className="h-8 w-8 text-accent flex-shrink-0" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Built a multi-terabyte data warehouse on AWS Redshift with automated ETL pipelines using Airflow.
-                    Enabled advanced customer segmentation and increased marketing ROI by 35%.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary">AWS Redshift</Badge>
-                    <Badge variant="secondary">Apache Airflow</Badge>
-                    <Badge variant="secondary">dbt</Badge>
-                    <Badge variant="secondary">Tableau</Badge>
-                    <Badge variant="secondary">SQL</Badge>
-                  </div>
-                  <div className="pt-2">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <ExternalLink className="mr-2 h-3 w-3" />
-                          View Details
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                          <DialogTitle className="text-2xl font-serif">
-                            {projectDetails["data-warehouse"].title}
-                          </DialogTitle>
-                        </DialogHeader>
-                        <Tabs defaultValue="problem" className="w-full">
-                          <TabsList className="grid w-full grid-cols-4">
-                            <TabsTrigger value="problem">Problem</TabsTrigger>
-                            <TabsTrigger value="architecture">Architecture</TabsTrigger>
-                            <TabsTrigger value="solution">Solution</TabsTrigger>
-                            <TabsTrigger value="code">Code</TabsTrigger>
-                          </TabsList>
-                          <TabsContent value="problem" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>Problem Statement</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <p className="text-muted-foreground leading-relaxed">
-                                  {projectDetails["data-warehouse"].problemStatement}
-                                </p>
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="architecture" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>System Architecture</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <img
-                                  src={projectDetails["data-warehouse"].architecture || "/placeholder.svg"}
-                                  alt="Data Warehouse Architecture"
-                                  className="w-full rounded-lg border"
-                                />
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="solution" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>Technical Solution</CardTitle>
-                              </CardHeader>
-                              <CardContent className="space-y-4">
-                                <div className="grid md:grid-cols-2 gap-4">
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Key Components:</h4>
-                                    <ul className="text-sm text-muted-foreground space-y-1">
-                                      <li>• AWS Redshift data warehouse</li>
-                                      <li>• Apache Airflow for ETL orchestration</li>
-                                      <li>• dbt for data transformation</li>
-                                      <li>• Tableau for visualization</li>
-                                      <li>• Multi-source data integration</li>
-                                    </ul>
-                                  </div>
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Results Achieved:</h4>
-                                    <ul className="text-sm text-muted-foreground space-y-1">
-                                      <li>• 35% increase in marketing ROI</li>
-                                      <li>• Multi-terabyte data processing</li>
-                                      <li>• 360-degree customer view</li>
-                                      <li>• Automated daily ETL processes</li>
-                                      <li>• Real-time analytics dashboards</li>
-                                    </ul>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="code" className="space-y-4">
-                            <Tabs defaultValue="sql" className="w-full">
-                              <TabsList>
-                                <TabsTrigger value="sql">SQL</TabsTrigger>
-                                <TabsTrigger value="python">Python</TabsTrigger>
-                                <TabsTrigger value="yaml">dbt</TabsTrigger>
-                              </TabsList>
-                              <TabsContent value="sql">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <Database className="h-5 w-5" />
-                                      SQL - Customer 360 Analytics
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["data-warehouse"].solution.sql}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                              <TabsContent value="python">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <Code className="h-5 w-5" />
-                                      Python - Airflow ETL Pipeline
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["data-warehouse"].solution.python}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                              <TabsContent value="yaml">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <Server className="h-5 w-5" />
-                                      dbt - Data Transformation
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["data-warehouse"].solution.yaml}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                            </Tabs>
-                          </TabsContent>
-                        </Tabs>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-xl mb-2">IoT Sensor Data Processing Platform</CardTitle>
-                    <CardDescription className="text-base">
-                      Developed a scalable platform for processing millions of IoT sensor readings
-                    </CardDescription>
-                  </div>
-                  <Cpu className="h-8 w-8 text-accent flex-shrink-0" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Created a distributed system handling 10M+ sensor readings per hour using Kafka, Spark, and
-                    Cassandra. Implemented predictive maintenance algorithms reducing downtime by 25%.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary">Apache Cassandra</Badge>
-                    <Badge variant="secondary">Apache Spark</Badge>
-                    <Badge variant="secondary">Kafka Connect</Badge>
-                    <Badge variant="secondary">Docker</Badge>
-                    <Badge variant="secondary">Kubernetes</Badge>
-                  </div>
-                  <div className="pt-2">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <ExternalLink className="mr-2 h-3 w-3" />
-                          View Details
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                          <DialogTitle className="text-2xl font-serif">
-                            {projectDetails["iot-platform"].title}
-                          </DialogTitle>
-                        </DialogHeader>
-                        <Tabs defaultValue="problem" className="w-full">
-                          <TabsList className="grid w-full grid-cols-4">
-                            <TabsTrigger value="problem">Problem</TabsTrigger>
-                            <TabsTrigger value="architecture">Architecture</TabsTrigger>
-                            <TabsTrigger value="solution">Solution</TabsTrigger>
-                            <TabsTrigger value="code">Code</TabsTrigger>
-                          </TabsList>
-                          <TabsContent value="problem" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>Problem Statement</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <p className="text-muted-foreground leading-relaxed">
-                                  {projectDetails["iot-platform"].problemStatement}
-                                </p>
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="architecture" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>System Architecture</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <img
-                                  src={projectDetails["iot-platform"].architecture || "/placeholder.svg"}
-                                  alt="IoT Platform Architecture"
-                                  className="w-full rounded-lg border"
-                                />
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="solution" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>Technical Solution</CardTitle>
-                              </CardHeader>
-                              <CardContent className="space-y-4">
-                                <div className="grid md:grid-cols-2 gap-4">
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Key Components:</h4>
-                                    <ul className="text-sm text-muted-foreground space-y-1">
-                                      <li>• Apache Cassandra for time-series data</li>
-                                      <li>• Kafka for real-time data streaming</li>
-                                      <li>• Spark for stream processing</li>
-                                      <li>• Docker & Kubernetes deployment</li>
-                                      <li>• Predictive maintenance algorithms</li>
-                                    </ul>
-                                  </div>
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Results Achieved:</h4>
-                                    <ul className="text-sm text-muted-foreground space-y-1">
-                                      <li>• 10M+ sensor readings per hour</li>
-                                      <li>• 25% reduction in equipment downtime</li>
-                                      <li>• Real-time anomaly detection</li>
-                                      <li>• Scalable microservices architecture</li>
-                                      <li>• 99.95% system availability</li>
-                                    </ul>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="code" className="space-y-4">
-                            <Tabs defaultValue="python" className="w-full">
-                              <TabsList>
-                                <TabsTrigger value="python">Python</TabsTrigger>
-                                <TabsTrigger value="scala">Scala</TabsTrigger>
-                                <TabsTrigger value="cql">CQL</TabsTrigger>
-                              </TabsList>
-                              <TabsContent value="python">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <Code className="h-5 w-5" />
-                                      Python - IoT Data Processing
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["iot-platform"].solution.python}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                              <TabsContent value="scala">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <Server className="h-5 w-5" />
-                                      Scala - Kafka Streams Processing
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["iot-platform"].solution.scala}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                              <TabsContent value="cql">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <Database className="h-5 w-5" />
-                                      CQL - Cassandra Schema
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["iot-platform"].solution.cql}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                            </Tabs>
-                          </TabsContent>
-                        </Tabs>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-xl mb-2">Financial Risk Analytics Engine</CardTitle>
-                    <CardDescription className="text-base">
-                      Built a comprehensive risk analytics platform for financial institutions
-                    </CardDescription>
-                  </div>
-                  <BarChart3 className="h-8 w-8 text-accent flex-shrink-0" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Developed a risk analytics engine processing complex financial data using advanced statistical
-                    models. Improved risk assessment accuracy by 30% and reduced processing time by 60%.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary">PySpark</Badge>
-                    <Badge variant="secondary">Hadoop HDFS</Badge>
-                    <Badge variant="secondary">Apache Hive</Badge>
-                    <Badge variant="secondary">R</Badge>
-                    <Badge variant="secondary">AWS S3</Badge>
-                  </div>
-                  <div className="pt-2">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <ExternalLink className="mr-2 h-3 w-3" />
-                          View Details
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                          <DialogTitle className="text-2xl font-serif">
-                            {projectDetails["risk-analytics"].title}
-                          </DialogTitle>
-                        </DialogHeader>
-                        <Tabs defaultValue="problem" className="w-full">
-                          <TabsList className="grid w-full grid-cols-4">
-                            <TabsTrigger value="problem">Problem</TabsTrigger>
-                            <TabsTrigger value="architecture">Architecture</TabsTrigger>
-                            <TabsTrigger value="solution">Solution</TabsTrigger>
-                            <TabsTrigger value="code">Code</TabsTrigger>
-                          </TabsList>
-                          <TabsContent value="problem" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>Problem Statement</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <p className="text-muted-foreground leading-relaxed">
-                                  {projectDetails["risk-analytics"].problemStatement}
-                                </p>
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="architecture" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>System Architecture</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <img
-                                  src={projectDetails["risk-analytics"].architecture || "/placeholder.svg"}
-                                  alt="Risk Analytics Architecture"
-                                  className="w-full rounded-lg border"
-                                />
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="solution" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>Technical Solution</CardTitle>
-                              </CardHeader>
-                              <CardContent className="space-y-4">
-                                <div className="grid md:grid-cols-2 gap-4">
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Key Components:</h4>
-                                    <ul className="text-sm text-muted-foreground space-y-1">
-                                      <li>• PySpark for distributed processing</li>
-                                      <li>• Advanced statistical models in R</li>
-                                      <li>• Hadoop HDFS for data storage</li>
-                                      <li>• Apache Hive for data warehousing</li>
-                                      <li>• AWS S3 for backup and archival</li>
-                                    </ul>
-                                  </div>
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Results Achieved:</h4>
-                                    <ul className="text-sm text-muted-foreground space-y-1">
-                                      <li>• 30% improvement in risk assessment accuracy</li>
-                                      <li>• 60% reduction in processing time</li>
-                                      <li>• Real-time risk monitoring</li>
-                                      <li>• Regulatory compliance automation</li>
-                                      <li>• Multi-risk type analysis</li>
-                                    </ul>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="code" className="space-y-4">
-                            <Tabs defaultValue="python" className="w-full">
-                              <TabsList>
-                                <TabsTrigger value="python">Python</TabsTrigger>
-                                <TabsTrigger value="sql">SQL</TabsTrigger>
-                                <TabsTrigger value="r">R</TabsTrigger>
-                              </TabsList>
-                              <TabsContent value="python">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <Code className="h-5 w-5" />
-                                      Python - Risk Analytics Engine
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["risk-analytics"].solution.python}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                              <TabsContent value="sql">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <Database className="h-5 w-5" />
-                                      SQL - Advanced Risk Analytics
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["risk-analytics"].solution.sql}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                              <TabsContent value="r">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <BarChart3 className="h-5 w-5" />R - Statistical Risk Modeling
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["risk-analytics"].solution.r}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                            </Tabs>
-                          </TabsContent>
-                        </Tabs>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* HR Data Platform Project */}
-            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-xl mb-2">Enterprise HR Data Platform</CardTitle>
-                    <CardDescription className="text-base">
-                      Developed a unified platform for workforce analytics, compliance, and reporting
-                    </CardDescription>
-                  </div>
-                  <Database className="h-8 w-8 text-accent flex-shrink-0" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Built a Medallion architecture data platform on Azure Data Lake and SQL DW, integrating data from 8+
-                    HRIS systems. Enabled advanced workforce analytics, ensured compliance, and automated executive
-                    reporting, reducing delays from 2 weeks to 1 day.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary">Azure Data Lake</Badge>
-                    <Badge variant="secondary">Azure SQL DW</Badge>
-                    <Badge variant="secondary">Python</Badge>
-                    <Badge variant="secondary">Alteryx</Badge>
-                    <Badge variant="secondary">Power BI</Badge>
-                  </div>
-                  <div className="pt-2">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <ExternalLink className="mr-2 h-3 w-3" />
-                          View Details
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                          <DialogTitle className="text-2xl font-serif">
-                            {projectDetails["hr-data-platform"].title}
-                          </DialogTitle>
-                        </DialogHeader>
-                        <Tabs defaultValue="problem" className="w-full">
-                          <TabsList className="grid w-full grid-cols-4">
-                            <TabsTrigger value="problem">Problem</TabsTrigger>
-                            <TabsTrigger value="architecture">Architecture</TabsTrigger>
-                            <TabsTrigger value="solution">Solution</TabsTrigger>
-                            <TabsTrigger value="code">Code</TabsTrigger>
-                          </TabsList>
-                          <TabsContent value="problem" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>Problem Statement</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <p className="text-muted-foreground leading-relaxed">
-                                  {projectDetails["hr-data-platform"].problemStatement}
-                                </p>
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="architecture" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>System Architecture</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <img
-                                  src={projectDetails["hr-data-platform"].architecture || "/placeholder.svg"}
-                                  alt="HR Data Platform Architecture"
-                                  className="w-full rounded-lg border"
-                                />
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="solution" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>Technical Solution</CardTitle>
-                              </CardHeader>
-                              <CardContent className="space-y-4">
-                                <div className="grid md:grid-cols-2 gap-4">
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Key Components:</h4>
-                                    <ul className="text-sm text-muted-foreground space-y-1">
-                                      <li>• Medallion architecture (Bronze, Silver, Gold)</li>
-                                      <li>• Azure Data Lake Storage Gen2</li>
-                                      <li>• Azure Synapse Analytics / SQL DW</li>
-                                      <li>• Python for ETL orchestration & scripting</li>
-                                      <li>• Alteryx for complex transformations</li>
-                                      <li>• Power BI for executive dashboards</li>
-                                    </ul>
-                                  </div>
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Results Achieved:</h4>
-                                    <ul className="text-sm text-muted-foreground space-y-1">
-                                      <li>• Reduced reporting delays from 2 weeks to 1 day</li>
-                                      <li>• Unified view of 100% of workforce data</li>
-                                      <li>• Improved compliance with labor regulations</li>
-                                      <li>• 30% reduction in manual data reconciliation effort</li>
-                                      <li>• Enabled advanced workforce analytics capabilities</li>
-                                    </ul>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="code" className="space-y-4">
-                            <Tabs defaultValue="sql" className="w-full">
-                              <TabsList>
-                                <TabsTrigger value="sql">SQL</TabsTrigger>
-                                <TabsTrigger value="python">Python</TabsTrigger>
-                                <TabsTrigger value="alteryx">Alteryx</TabsTrigger>
-                                <TabsTrigger value="powerbi">Power BI</TabsTrigger>
-                              </TabsList>
-                              <TabsContent value="sql">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <Database className="h-5 w-5" />
-                                      SQL - Medallion Architecture Schema
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["hr-data-platform"].solution.sql}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                              <TabsContent value="python">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <Code className="h-5 w-5" />
-                                      Python - ETL Orchestration & Automation
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["hr-data-platform"].solution.python}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                              <TabsContent value="alteryx">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <Server className="h-5 w-5" />
-                                      Alteryx - Data Integration Workflow
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["hr-data-platform"].solution.alteryx}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                              <TabsContent value="powerbi">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <BarChart3 className="h-5 w-5" />
-                                      Power BI - DAX Measures for Analytics
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["hr-data-platform"].solution.powerbi}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                            </Tabs>
-                          </TabsContent>
-                        </Tabs>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Insurance Analytics Project */}
-            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-xl mb-2">Insurance Analytics & Insights Platform</CardTitle>
-                    <CardDescription className="text-base">
-                      Built comprehensive analytics platform for insurance insights, claims analysis, and customer
-                      segmentation
-                    </CardDescription>
-                  </div>
-                  <TrendingUp className="h-8 w-8 text-accent flex-shrink-0" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Developed an end-to-end analytics platform processing data from multiple insurance systems, enabling
-                    real-time insights on policy performance, claims trends, and customer behavior. Reduced reporting
-                    time from 7 days to 1 day and enabled data-driven decision making across the organization.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary">SQL Server</Badge>
-                    <Badge variant="secondary">Python</Badge>
-                    <Badge variant="secondary">Power BI</Badge>
-                    <Badge variant="secondary">Azure</Badge>
-                    <Badge variant="secondary">Machine Learning</Badge>
-                  </div>
-                  <div className="pt-2">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <ExternalLink className="mr-2 h-3 w-3" />
-                          View Details
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                          <DialogTitle className="text-2xl font-serif">
-                            {projectDetails["insurance-analytics"].title}
-                          </DialogTitle>
-                        </DialogHeader>
-                        <Tabs defaultValue="problem" className="w-full">
-                          <TabsList className="grid w-full grid-cols-4">
-                            <TabsTrigger value="problem">Problem</TabsTrigger>
-                            <TabsTrigger value="architecture">Architecture</TabsTrigger>
-                            <TabsTrigger value="solution">Solution</TabsTrigger>
-                            <TabsTrigger value="code">Code</TabsTrigger>
-                          </TabsList>
-                          <TabsContent value="problem" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>Problem Statement</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <p className="text-muted-foreground leading-relaxed">
-                                  {projectDetails["insurance-analytics"].problemStatement}
-                                </p>
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="architecture" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>System Architecture</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <img
-                                  src={projectDetails["insurance-analytics"].architecture || "/placeholder.svg"}
-                                  alt="Insurance Analytics Architecture"
-                                  className="w-full rounded-lg border"
-                                />
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="solution" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>Technical Solution</CardTitle>
-                              </CardHeader>
-                              <CardContent className="space-y-4">
-                                <div className="grid md:grid-cols-2 gap-4">
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Key Components:</h4>
-                                    <ul className="text-sm text-muted-foreground space-y-1">
-                                      <li>• SQL Server for relational data modeling</li>
-                                      <li>• Python for data processing & ML models</li>
-                                      <li>• Power BI for interactive dashboards</li>
-                                      <li>• Azure cloud infrastructure</li>
-                                      <li>• Root cause analysis algorithms</li>
-                                      <li>• Customer segmentation & churn prediction</li>
-                                    </ul>
-                                  </div>
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Results Achieved:</h4>
-                                    <ul className="text-sm text-muted-foreground space-y-1">
-                                      <li>• Reduced reporting time from 7 days to 1 day</li>
-                                      <li>• 85% accuracy in churn prediction models</li>
-                                      <li>• Identified top 20% of claims causes (Pareto)</li>
-                                      <li>• Enabled proactive risk management</li>
-                                      <li>• Improved customer segmentation insights</li>
-                                    </ul>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="code" className="space-y-4">
-                            <Tabs defaultValue="sql" className="w-full">
-                              <TabsList>
-                                <TabsTrigger value="sql">SQL</TabsTrigger>
-                                <TabsTrigger value="python">Python</TabsTrigger>
-                                <TabsTrigger value="powerbi">Power BI</TabsTrigger>
-                              </TabsList>
-                              <TabsContent value="sql">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <Database className="h-5 w-5" />
-                                      SQL - Insurance Analytics Data Models
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["insurance-analytics"].solution.sql}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                              <TabsContent value="python">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <Code className="h-5 w-5" />
-                                      Python - Analytics & Machine Learning
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["insurance-analytics"].solution.python}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                              <TabsContent value="powerbi">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <BarChart3 className="h-5 w-5" />
-                                      Power BI - DAX Measures & KPIs
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["insurance-analytics"].solution.powerbi}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                            </Tabs>
-                          </TabsContent>
-                        </Tabs>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Credit Lifecycle BI Project */}
             <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -5011,8 +3776,8 @@ export default function Portfolio() {
                                 <Card>
                                   <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
-                                      <Server className="h-5 w-5" />
-                                      MS Access VBA - Data Management
+                                      <Database className="h-5 w-5" />
+                                      MS Access - Data Management
                                     </CardTitle>
                                   </CardHeader>
                                   <CardContent>
@@ -5026,8 +3791,8 @@ export default function Portfolio() {
                                 <Card>
                                   <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
-                                      <FileSpreadsheet className="h-5 w-5" />
-                                      PowerPoint VBA - Executive Presentations
+                                      <FileText className="h-5 w-5" />
+                                      PowerPoint VBA - Presentation Automation
                                     </CardTitle>
                                   </CardHeader>
                                   <CardContent>
@@ -5046,356 +3811,905 @@ export default function Portfolio() {
                 </div>
               </CardContent>
             </Card>
+            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-xl mb-2">HR Data Platform</CardTitle>
+                    <CardDescription className="text-base">
+                      Unified HR data platform for workforce analytics, compliance, and executive reporting
+                    </CardDescription>
+                  </div>
+                  <FileSpreadsheet className="h-8 w-8 text-accent flex-shrink-0" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Developed an enterprise HR data platform integrating data from 8 HRIS systems, enabling unified
+                    workforce analytics and ensuring compliance. Reduced reporting delays from 2 weeks to real-time
+                    dashboards through ETL pipelines, data governance, and Alteryx/Python automation.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">Azure SQL</Badge>
+                    <Badge variant="secondary">Python</Badge>
+                    <Badge variant="secondary">Alteryx</Badge>
+                    <Badge variant="secondary">Power BI</Badge>
+                    <Badge variant="secondary">Azure Blob Storage</Badge>
+                  </div>
+                  <div className="pt-2">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <ExternalLink className="mr-2 h-3 w-3" />
+                          View Details
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle className="text-2xl font-serif">
+                            {projectDetails["hr-data-platform"].title}
+                          </DialogTitle>
+                        </DialogHeader>
+                        <Tabs defaultValue="problem" className="w-full">
+                          <TabsList className="grid w-full grid-cols-4">
+                            <TabsTrigger value="problem">Problem</TabsTrigger>
+                            <TabsTrigger value="architecture">Architecture</TabsTrigger>
+                            <TabsTrigger value="solution">Solution</TabsTrigger>
+                            <TabsTrigger value="code">Code</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="problem" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Problem Statement</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <p className="text-muted-foreground leading-relaxed">
+                                  {projectDetails["hr-data-platform"].problemStatement}
+                                </p>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="architecture" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>System Architecture</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <img
+                                  src={projectDetails["hr-data-platform"].architecture || "/placeholder.svg"}
+                                  alt="HR Data Platform Architecture"
+                                  className="w-full rounded-lg border"
+                                />
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="solution" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Technical Solution</CardTitle>
+                              </CardHeader>
+                              <CardContent className="space-y-4">
+                                <div className="grid md:grid-cols-2 gap-4">
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Key Components:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• Azure SQL DB for Silver & Gold layers</li>
+                                      <li>• Azure Blob Storage for Bronze layer</li>
+                                      <li>• Python for ETL orchestration & API integration</li>
+                                      <li>• Alteryx for workflow automation & data prep</li>
+                                      <li>• Power BI for workforce analytics dashboards</li>
+                                      <li>• Data governance & PII masking</li>
+                                    </ul>
+                                  </div>
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Results Achieved:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• Unified view of workforce analytics</li>
+                                      <li>• Real-time reporting & compliance</li>
+                                      <li>• Reduced reporting time by 80%+</li>
+                                      <li>• Improved data quality and governance</li>
+                                      <li>• Scalable and secure data infrastructure</li>
+                                    </ul>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="code" className="space-y-4">
+                            <Tabs defaultValue="sql" className="w-full">
+                              <TabsList>
+                                <TabsTrigger value="sql">SQL</TabsTrigger>
+                                <TabsTrigger value="python">Python</TabsTrigger>
+                                <TabsTrigger value="alteryx">Alteryx</TabsTrigger>
+                                <TabsTrigger value="powerbi">Power BI</TabsTrigger>
+                              </TabsList>
+                              <TabsContent value="sql">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <Database className="h-5 w-5" />
+                                      SQL - HR Data Model
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                      <code>{projectDetails["hr-data-platform"].solution.sql}</code>
+                                    </pre>
+                                  </CardContent>
+                                </Card>
+                              </TabsContent>
+                              <TabsContent value="python">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <Code className="h-5 w-5" />
+                                      Python - ETL Orchestration
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                      <code>{projectDetails["hr-data-platform"].solution.python}</code>
+                                    </pre>
+                                  </CardContent>
+                                </Card>
+                              </TabsContent>
+                              <TabsContent value="alteryx">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <FileText className="h-5 w-5" />
+                                      Alteryx - Workflow Automation
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                      <code>{projectDetails["hr-data-platform"].solution.alteryx}</code>
+                                    </pre>
+                                  </CardContent>
+                                </Card>
+                              </TabsContent>
+                              <TabsContent value="powerbi">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <FileText className="h-5 w-5" />
+                                      Power BI - Workforce Analytics
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                      <code>{projectDetails["hr-data-platform"].solution.powerbi}</code>
+                                    </pre>
+                                  </CardContent>
+                                </Card>
+                              </TabsContent>
+                            </Tabs>
+                          </TabsContent>
+                        </Tabs>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-xl mb-2">Insurance Analytics & Insights Platform</CardTitle>
+                    <CardDescription className="text-base">
+                      Real-time analytics for policy performance, claims trends, and customer behavior
+                    </CardDescription>
+                  </div>
+                  <FileSpreadsheet className="h-8 w-8 text-accent flex-shrink-0" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Built an Insurance Analytics platform handling unstructured data from policy administration, claims,
+                    and customer interactions. Enabled real-time analytics for operational and strategic decisions,
+                    improving risk management and customer engagement.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">SQL Server</Badge>
+                    <Badge variant="secondary">Python</Badge>
+                    <Badge variant="secondary">Power BI</Badge>
+                    <Badge variant="secondary">Scikit-learn</Badge>
+                    <Badge variant="secondary">PyODBC</Badge>
+                  </div>
+                  <div className="pt-2">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <ExternalLink className="mr-2 h-3 w-3" />
+                          View Details
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle className="text-2xl font-serif">
+                            {projectDetails["insurance-analytics"].title}
+                          </DialogTitle>
+                        </DialogHeader>
+                        <Tabs defaultValue="problem" className="w-full">
+                          <TabsList className="grid w-full grid-cols-4">
+                            <TabsTrigger value="problem">Problem</TabsTrigger>
+                            <TabsTrigger value="architecture">Architecture</TabsTrigger>
+                            <TabsTrigger value="solution">Solution</TabsTrigger>
+                            <TabsTrigger value="code">Code</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="problem" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Problem Statement</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <p className="text-muted-foreground leading-relaxed">
+                                  {projectDetails["insurance-analytics"].problemStatement}
+                                </p>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="architecture" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>System Architecture</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <img
+                                  src={projectDetails["insurance-analytics"].architecture || "/placeholder.svg"}
+                                  alt="Insurance Analytics Architecture"
+                                  className="w-full rounded-lg border"
+                                />
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="solution" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Technical Solution</CardTitle>
+                              </CardHeader>
+                              <CardContent className="space-y-4">
+                                <div className="grid md:grid-cols-2 gap-4">
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Key Components:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• SQL Server for data modeling</li>
+                                      <li>• Python for analytics, ML, and data processing</li>
+                                      <li>• Power BI for interactive dashboards</li>
+                                      <li>• Churn prediction models (Random Forest)</li>
+                                      <li>• Customer segmentation (RFM analysis)</li>
+                                      <li>• Claims root cause analysis</li>
+                                    </ul>
+                                  </div>
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Results Achieved:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• Real-time insights into policy & claims performance</li>
+                                      <li>• Proactive risk management</li>
+                                      <li>• Personalized customer engagement</li>
+                                      <li>• Reduced reporting time by 70%+</li>
+                                      <li>• Improved marketing ROI by 45%</li>
+                                    </ul>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="code" className="space-y-4">
+                            <Tabs defaultValue="sql" className="w-full">
+                              <TabsList>
+                                <TabsTrigger value="sql">SQL</TabsTrigger>
+                                <TabsTrigger value="python">Python</TabsTrigger>
+                                <TabsTrigger value="powerbi">Power BI</TabsTrigger>
+                              </TabsList>
+                              <TabsContent value="sql">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <Database className="h-5 w-5" />
+                                      SQL - Insurance Analytics Models
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                      <code>{projectDetails["insurance-analytics"].solution.sql}</code>
+                                    </pre>
+                                  </CardContent>
+                                </Card>
+                              </TabsContent>
+                              <TabsContent value="python">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <Code className="h-5 w-5" />
+                                      Python - Analytics & ML
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                      <code>{projectDetails["insurance-analytics"].solution.python}</code>
+                                    </pre>
+                                  </CardContent>
+                                </Card>
+                              </TabsContent>
+                              <TabsContent value="powerbi">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <FileText className="h-5 w-5" />
+                                      Power BI - Analytics Dashboard
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                      <code>{projectDetails["insurance-analytics"].solution.powerbi}</code>
+                                    </pre>
+                                  </CardContent>
+                                </Card>
+                              </TabsContent>
+                            </Tabs>
+                          </TabsContent>
+                        </Tabs>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-xl mb-2">Real-time Fraud Detection Pipeline</CardTitle>
+                    <CardDescription className="text-base">
+                      Streaming data pipeline processing millions of transactions for real-time fraud detection
+                    </CardDescription>
+                  </div>
+                  <Zap className="h-8 w-8 text-accent flex-shrink-0" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Built a real-time fraud detection system using Kafka, Spark Streaming, and ML models to process 5M+
+                    transactions daily with sub-second latency and 99.2% accuracy.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">Apache Kafka</Badge>
+                    <Badge variant="secondary">Spark Streaming</Badge>
+                    <Badge variant="secondary">Python</Badge>
+                    <Badge variant="secondary">Redis</Badge>
+                    <Badge variant="secondary">ML Models</Badge>
+                  </div>
+                  <div className="pt-2">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <ExternalLink className="mr-2 h-3 w-3" />
+                          View Details
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle className="text-2xl font-serif">
+                            {projectDetails["fraud-detection"].title}
+                          </DialogTitle>
+                        </DialogHeader>
+                        <Tabs defaultValue="problem" className="w-full">
+                          <TabsList className="grid w-full grid-cols-4">
+                            <TabsTrigger value="problem">Problem</TabsTrigger>
+                            <TabsTrigger value="architecture">Architecture</TabsTrigger>
+                            <TabsTrigger value="solution">Solution</TabsTrigger>
+                            <TabsTrigger value="code">Code</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="problem" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Problem Statement</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <p className="text-muted-foreground leading-relaxed">
+                                  {projectDetails["fraud-detection"].problemStatement}
+                                </p>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="architecture" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>System Architecture</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <img
+                                  src={projectDetails["fraud-detection"].architecture || "/placeholder.svg"}
+                                  alt="Fraud Detection Architecture"
+                                  className="w-full rounded-lg border"
+                                />
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="solution" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Technical Solution</CardTitle>
+                              </CardHeader>
+                              <CardContent className="space-y-4">
+                                <div className="grid md:grid-cols-2 gap-4">
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Key Components:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• Kafka for message streaming</li>
+                                      <li>• Spark Streaming for real-time processing</li>
+                                      <li>• Redis for feature cache</li>
+                                      <li>• ML models for anomaly detection</li>
+                                      <li>• Alert management system</li>
+                                    </ul>
+                                  </div>
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Results Achieved:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• 5M+ transactions processed daily</li>
+                                      <li>• Sub-second detection latency</li>
+                                      <li>• 99.2% detection accuracy</li>
+                                      <li>• Reduced false positives by 60%</li>
+                                    </ul>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="code" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                  <Code className="h-5 w-5" />
+                                  Python - Spark Streaming Fraud Detection
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                  <code>{projectDetails["fraud-detection"].solution}</code>
+                                </pre>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                        </Tabs>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-xl mb-2">Customer Analytics Data Warehouse</CardTitle>
+                    <CardDescription className="text-base">
+                      Enterprise data warehouse for customer insights and marketing analytics
+                    </CardDescription>
+                  </div>
+                  <BarChart3 className="h-8 w-8 text-accent flex-shrink-0" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Designed and implemented a cloud-native data warehouse consolidating data from 15+ sources to enable
+                    360° customer view and advanced analytics with 200TB+ data.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">Snowflake</Badge>
+                    <Badge variant="secondary">dbt</Badge>
+                    <Badge variant="secondary">Airflow</Badge>
+                    <Badge variant="secondary">Python</Badge>
+                    <Badge variant="secondary">SQL</Badge>
+                  </div>
+                  <div className="pt-2">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <ExternalLink className="mr-2 h-3 w-3" />
+                          View Details
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle className="text-2xl font-serif">
+                            {projectDetails["customer-warehouse"].title}
+                          </DialogTitle>
+                        </DialogHeader>
+                        <Tabs defaultValue="problem" className="w-full">
+                          <TabsList className="grid w-full grid-cols-4">
+                            <TabsTrigger value="problem">Problem</TabsTrigger>
+                            <TabsTrigger value="architecture">Architecture</TabsTrigger>
+                            <TabsTrigger value="solution">Solution</TabsTrigger>
+                            <TabsTrigger value="code">Code</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="problem" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Problem Statement</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <p className="text-muted-foreground leading-relaxed">
+                                  {projectDetails["customer-warehouse"].problemStatement}
+                                </p>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="architecture" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>System Architecture</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <img
+                                  src={projectDetails["customer-warehouse"].architecture || "/placeholder.svg"}
+                                  alt="Data Warehouse Architecture"
+                                  className="w-full rounded-lg border"
+                                />
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="solution" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Technical Solution</CardTitle>
+                              </CardHeader>
+                              <CardContent className="space-y-4">
+                                <div className="grid md:grid-cols-2 gap-4">
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Key Components:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• Snowflake data warehouse</li>
+                                      <li>• dbt for data transformations</li>
+                                      <li>• Airflow for orchestration</li>
+                                      <li>• Star schema data modeling</li>
+                                      <li>• Incremental loading strategies</li>
+                                    </ul>
+                                  </div>
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Results Achieved:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• 200TB+ of customer data consolidated</li>
+                                      <li>• Query performance improved by 10x</li>
+                                      <li>• 360° customer view enabled</li>
+                                      <li>• Self-service analytics for 500+ users</li>
+                                    </ul>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="code" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                  <Database className="h-5 w-5" />
+                                  SQL - Data Modeling with dbt
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                  <code>{projectDetails["customer-warehouse"].solution}</code>
+                                </pre>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                        </Tabs>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-xl mb-2">IoT Sensor Data Processing</CardTitle>
+                    <CardDescription className="text-base">
+                      Scalable platform for ingesting and analyzing IoT sensor data from manufacturing equipment
+                    </CardDescription>
+                  </div>
+                  <Cpu className="h-8 w-8 text-accent flex-shrink-0" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Built an IoT data processing pipeline handling 10M+ sensor events per minute with real-time anomaly
+                    detection and predictive maintenance capabilities.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">Kafka</Badge>
+                    <Badge variant="secondary">Spark</Badge>
+                    <Badge variant="secondary">Scala</Badge>
+                    <Badge variant="secondary">Cassandra</Badge>
+                    <Badge variant="secondary">Time Series</Badge>
+                  </div>
+                  <div className="pt-2">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <ExternalLink className="mr-2 h-3 w-3" />
+                          View Details
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle className="text-2xl font-serif">
+                            {projectDetails["iot-processing"].title}
+                          </DialogTitle>
+                        </DialogHeader>
+                        <Tabs defaultValue="problem" className="w-full">
+                          <TabsList className="grid w-full grid-cols-4">
+                            <TabsTrigger value="problem">Problem</TabsTrigger>
+                            <TabsTrigger value="architecture">Architecture</TabsTrigger>
+                            <TabsTrigger value="solution">Solution</TabsTrigger>
+                            <TabsTrigger value="code">Code</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="problem" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Problem Statement</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <p className="text-muted-foreground leading-relaxed">
+                                  {projectDetails["iot-processing"].problemStatement}
+                                </p>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="architecture" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>System Architecture</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <img
+                                  src={projectDetails["iot-processing"].architecture || "/placeholder.svg"}
+                                  alt="IoT Processing Architecture"
+                                  className="w-full rounded-lg border"
+                                />
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="solution" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Technical Solution</CardTitle>
+                              </CardHeader>
+                              <CardContent className="space-y-4">
+                                <div className="grid md:grid-cols-2 gap-4">
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Key Components:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• Kafka for event streaming</li>
+                                      <li>• Spark Streaming in Scala</li>
+                                      <li>• Cassandra for time-series storage</li>
+                                      <li>• Real-time aggregations</li>
+                                      <li>• Anomaly detection algorithms</li>
+                                    </ul>
+                                  </div>
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Results Achieved:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• 10M+ events processed per minute</li>
+                                      <li>• Real-time anomaly detection</li>
+                                      <li>• 40% reduction in equipment downtime</li>
+                                      <li>• Predictive maintenance enabled</li>
+                                    </ul>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="code" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                  <Code className="h-5 w-5" />
+                                  Scala - Kafka Streams Processing
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                  <code>{projectDetails["iot-processing"].solution}</code>
+                                </pre>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                        </Tabs>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-xl mb-2">Financial Risk Analytics Dashboard</CardTitle>
+                    <CardDescription className="text-base">
+                      Real-time risk monitoring and analytics platform for portfolio management
+                    </CardDescription>
+                  </div>
+                  <TrendingUp className="h-8 w-8 text-accent flex-shrink-0" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Developed a comprehensive risk analytics platform using R and statistical models to provide
+                    real-time portfolio risk assessment and regulatory reporting.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">R</Badge>
+                    <Badge variant="secondary">Shiny</Badge>
+                    <Badge variant="secondary">PostgreSQL</Badge>
+                    <Badge variant="secondary">Statistical Models</Badge>
+                    <Badge variant="secondary">Monte Carlo</Badge>
+                  </div>
+                  <div className="pt-2">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <ExternalLink className="mr-2 h-3 w-3" />
+                          View Details
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle className="text-2xl font-serif">
+                            {projectDetails["risk-analytics"].title}
+                          </DialogTitle>
+                        </DialogHeader>
+                        <Tabs defaultValue="problem" className="w-full">
+                          <TabsList className="grid w-full grid-cols-4">
+                            <TabsTrigger value="problem">Problem</TabsTrigger>
+                            <TabsTrigger value="architecture">Architecture</TabsTrigger>
+                            <TabsTrigger value="solution">Solution</TabsTrigger>
+                            <TabsTrigger value="code">Code</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="problem" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Problem Statement</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <p className="text-muted-foreground leading-relaxed">
+                                  {projectDetails["risk-analytics"].problemStatement}
+                                </p>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="architecture" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>System Architecture</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <img
+                                  src={projectDetails["risk-analytics"].architecture || "/placeholder.svg"}
+                                  alt="Risk Analytics Architecture"
+                                  className="w-full rounded-lg border"
+                                />
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="solution" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Technical Solution</CardTitle>
+                              </CardHeader>
+                              <CardContent className="space-y-4">
+                                <div className="grid md:grid-cols-2 gap-4">
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Key Components:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• R for statistical analysis</li>
+                                      <li>• Shiny for interactive dashboards</li>
+                                      <li>• PostgreSQL for data storage</li>
+                                      <li>• VaR and CVaR calculations</li>
+                                      <li>• Monte Carlo simulations</li>
+                                    </ul>
+                                  </div>
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Results Achieved:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• Real-time portfolio risk monitoring</li>
+                                      <li>• Automated regulatory reporting</li>
+                                      <li>• Improved risk assessment accuracy</li>
+                                      <li>• Reduced reporting time by 80%</li>
+                                    </ul>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="code" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                  <Code className="h-5 w-5" />R - Risk Analytics & Monte Carlo
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                  <code>{projectDetails["risk-analytics"].solution}</code>
+                                </pre>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                        </Tabs>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>
 
       {/* Contact Section */}
-      <section id="contact" className="py-16 px-4">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-4xl font-serif font-bold text-center mb-12 text-balance">Get In Touch</h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <Mail className="h-6 w-6 text-primary" />
-                  <CardTitle className="text-lg">Email</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <a
-                  href="mailto:stanton.edwards@outlook.com"
-                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
-                >
-                  stanton.edwards@outlook.com
-                </a>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <Phone className="h-6 w-6 text-primary" />
-                  <CardTitle className="text-lg">Phone</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <a href="tel:0798810997" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  079 881 0997
-                </a>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <MapPin className="h-6 w-6 text-primary" />
-                  <CardTitle className="text-lg">Location</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">Johannesburg, South Africa</p>
-              </CardContent>
-            </Card>
-          </div>
+      <section id="contact" className="py-16 px-4 bg-card">
+        <div className="max-w-xl mx-auto text-center">
+          <h2 className="text-4xl font-serif font-bold mb-4">Let's Connect</h2>
+          <p className="text-lg text-muted-foreground mb-8">
+            Have a project in mind or want to discuss how data can drive your business? Let's talk.
+          </p>
+          <Button size="lg" className="bg-primary hover:bg-primary/90" asChild>
+            <a href="mailto:stanton.edwards@email.com">
+              <Mail className="mr-2 h-4 w-4" />
+              Say Hello
+            </a>
+          </Button>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="py-8 px-4 border-t">
-        <div className="max-w-6xl mx-auto text-center">
-          <p className="text-sm text-muted-foreground">
-            © 2024 Stanton Edwards. Built with passion for data engineering and analytics.
-          </p>
-        </div>
+      <footer className="py-8 px-4 text-center text-muted-foreground text-sm">
+        © {new Date().getFullYear()} Stanton Edwards. All rights reserved.
       </footer>
 
+      {/* Resume Modal */}
       <Dialog open={isResumeOpen} onOpenChange={setIsResumeOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-3xl font-serif">CV - Stanton Edwards</DialogTitle>
+        <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-hidden p-0">
+          <DialogHeader className="p-6 pb-2">
+            <DialogTitle className="text-2xl font-serif">Stanton Edwards - Resume</DialogTitle>
+            <DialogDescription>Download or view my detailed professional experience.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-6 print:space-y-4">
-            {/* Contact Information */}
-            <div className="border-b pb-4">
-              <h2 className="text-2xl font-serif font-bold mb-2">Contact Information</h2>
-              <div className="grid md:grid-cols-3 gap-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-primary" />
-                  <span>stanton.edwards@outlook.com</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-primary" />
-                  <span>079 881 0997</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-primary" />
-                  <span>Johannesburg, South Africa</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Professional Summary */}
-            <div className="border-b pb-4">
-              <h2 className="text-2xl font-serif font-bold mb-3">Professional Summary</h2>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Accomplished data analytics and AI leader with 10+ years of experience driving digital transformation
-                through advanced analytics, machine learning, and big data technologies. Proven track record of building
-                and leading high-performing teams, delivering R150M+ in measurable business value, and implementing
-                enterprise-scale data solutions. Expert in customer insights, predictive analytics, real-time
-                processing, and AI ethics. Strong background in cloud computing (AWS, Azure, GCP), statistical analysis
-                (Python, R, SAS), and data visualization (Tableau, Looker). Passionate about leveraging data as a
-                strategic asset to drive business outcomes and innovation.
-              </p>
-            </div>
-
-            {/* Professional Experience */}
-            <div className="border-b pb-4">
-              <h2 className="text-2xl font-serif font-bold mb-3">Professional Experience</h2>
-              <div className="space-y-4">
-                {/* Current Role */}
-                <div>
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h3 className="font-bold text-lg">Head of Data Analytics & AI</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Standard Bank - Insurance & Asset Management, Johannesburg
-                      </p>
-                    </div>
-                    <Badge className="bg-primary">Current</Badge>
-                  </div>
-                  <ul className="text-sm text-muted-foreground space-y-1 ml-4 list-disc">
-                    <li>
-                      Lead team of 25+ data scientists, analysts, and ML engineers across advanced analytics and AI/ML
-                      functions
-                    </li>
-                    <li>
-                      Developed enterprise analytics strategy delivering R150M+ in measurable business value through
-                      customer insights and risk analytics
-                    </li>
-                    <li>
-                      Built customer personalization platform using ML/NLP, increasing retention by 28% and cross-sell
-                      conversion by 35%
-                    </li>
-                    <li>Implemented real-time risk analytics processing 5M+ transactions daily with 99.2% accuracy</li>
-                    <li>
-                      Established AI ethics framework ensuring fairness, transparency, and POPIA compliance across all
-                      ML models
-                    </li>
-                    <li>
-                      Led predictive analytics for insurance underwriting, reducing loss ratios by 18% and improving
-                      efficiency by 40%
-                    </li>
-                  </ul>
-                </div>
-
-                {/* Previous Role */}
-                <div>
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h3 className="font-bold text-lg">BI Solutions Architect - Data & Analytics</h3>
-                      <p className="text-sm text-muted-foreground">
-                        TotalEnergies • Finance & IS • Rosebank Johannesburg
-                      </p>
-                    </div>
-                    <span className="text-sm text-muted-foreground">2022 - 2024</span>
-                  </div>
-                  <ul className="text-sm text-muted-foreground space-y-1 ml-4 list-disc">
-                    <li>
-                      Designed scalable, secure, and high-performance data solutions aligned with business requirements
-                      and digital transformation initiatives
-                    </li>
-                    <li>
-                      Architected cloud-native data solutions across Azure, AWS, and GCP, implementing data lakes,
-                      warehouses, and lakehouses
-                    </li>
-                    <li>
-                      Developed conceptual, logical, and physical data models ensuring data consistency, quality, and
-                      lineage across enterprise systems
-                    </li>
-                    <li>
-                      Embedded data governance principles and ensured compliance with POPIA and GDPR regulations through
-                      robust security controls
-                    </li>
-                    <li>
-                      Led technical architecture reviews and mentored data engineering teams on best practices using
-                      TOGAF frameworks
-                    </li>
-                  </ul>
-                </div>
-
-                {/* Earlier Roles */}
-                <div>
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h3 className="font-bold text-lg">Senior Data Engineer & Analytics Lead</h3>
-                      <p className="text-sm text-muted-foreground">Retail and B2B • TotalEnergies</p>
-                    </div>
-                    <span className="text-sm text-muted-foreground">2019 - 2022</span>
-                  </div>
-                  <ul className="text-sm text-muted-foreground space-y-1 ml-4 list-disc">
-                    <li>Led analytics team of 8 engineers delivering advanced analytics and ML model deployment</li>
-                    <li>Built customer segmentation models using Python/R, driving 45% improvement in marketing ROI</li>
-                    <li>Optimized Spark jobs reducing processing time by 70% and infrastructure costs by 45%</li>
-                  </ul>
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h3 className="font-bold text-lg">Data Engineer & Business Analyst</h3>
-                      <p className="text-sm text-muted-foreground">DataFlow Analytics</p>
-                    </div>
-                    <span className="text-sm text-muted-foreground">2016 - 2019</span>
-                  </div>
-                  <ul className="text-sm text-muted-foreground space-y-1 ml-4 list-disc">
-                    <li>Built ETL pipelines processing 100GB+ daily using Apache Airflow and Python</li>
-                    <li>
-                      Developed statistical models in Python/R for customer behavior analysis and churn prediction
-                    </li>
-                    <li>Created executive dashboards in Tableau combining data signals into actionable insights</li>
-                    <li>Collaborated with data scientist to productionize ML models serving 1M+ predictions daily</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            {/* Technical Skills */}
-            <div className="border-b pb-4">
-              <h2 className="text-2xl font-serif font-bold mb-3">Technical Skills</h2>
-              <div className="grid md:grid-cols-2 gap-4 text-sm">
-                <div>
-                  <h3 className="font-semibold mb-2">AI & Machine Learning</h3>
-                  <p className="text-muted-foreground">
-                    Machine Learning, Deep Learning, Natural Language Processing, Predictive Analytics, AI Ethics
-                  </p>
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-2">Analytics & Visualization</h3>
-                  <p className="text-muted-foreground">
-                    Tableau, Looker, Power BI, Advanced Excel, Statistical Analysis (SAS/R)
-                  </p>
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-2">Big Data Technologies</h3>
-                  <p className="text-muted-foreground">
-                    Apache Spark, Hadoop, Kafka, Real-time Processing, Automated Decision-Making
-                  </p>
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-2">Cloud Computing</h3>
-                  <p className="text-muted-foreground">
-                    AWS (EC2, EMR, Redshift, SageMaker), Azure ML, GCP BigQuery, Cloud Architecture
-                  </p>
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-2">Programming Languages</h3>
-                  <p className="text-muted-foreground">Python (Pandas, NumPy, Scikit-learn), R, SQL, SAS, Scala</p>
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-2">Leadership & Strategy</h3>
-                  <p className="text-muted-foreground">
-                    Team Leadership, Analytics Strategy, Stakeholder Management, TOGAF Frameworks
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Education */}
-            <div className="border-b pb-4">
-              <h2 className="text-2xl font-serif font-bold mb-3">Education</h2>
-              <div className="space-y-3">
-                <div>
-                  <h3 className="font-bold">Master of Science in Data Science</h3>
-                  <p className="text-sm text-muted-foreground">University of Johannesburg</p>
-                  <p className="text-sm text-muted-foreground">
-                    Specialization: Machine Learning & Statistical Analysis
-                  </p>
-                </div>
-                <div>
-                  <h3 className="font-bold">Bachelor of Science in Computer Science</h3>
-                  <p className="text-sm text-muted-foreground">University of Cape Town</p>
-                  <p className="text-sm text-muted-foreground">Focus: Data Structures & Algorithms</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Certifications */}
-            <div className="border-b pb-4">
-              <h2 className="text-2xl font-serif font-bold mb-3">Certifications</h2>
-              <div className="grid md:grid-cols-2 gap-2 text-sm">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">AWS Certified Solutions Architect</Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">TOGAF 9 Certified</Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">Azure Data Engineer Associate</Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">Google Cloud Professional Data Engineer</Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">Tableau Desktop Specialist</Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">Apache Spark Developer</Badge>
-                </div>
-              </div>
-            </div>
-
-            {/* Key Projects */}
-            <div>
-              <h2 className="text-2xl font-serif font-bold mb-3">Key Projects</h2>
-              <div className="space-y-3 text-sm">
-                <div>
-                  <h3 className="font-bold">Real-time Fraud Detection Pipeline</h3>
-                  <p className="text-muted-foreground">
-                    Built scalable fraud detection system processing 1M+ transactions daily with 98.5% accuracy using
-                    Kafka, Spark Streaming, and ML models
-                  </p>
-                </div>
-                <div>
-                  <h3 className="font-bold">Customer Analytics Data Warehouse</h3>
-                  <p className="text-muted-foreground">
-                    Architected multi-terabyte data warehouse on AWS Redshift with automated ETL, increasing marketing
-                    ROI by 35%
-                  </p>
-                </div>
-                <div>
-                  <h3 className="font-bold">IoT Sensor Data Processing Platform</h3>
-                  <p className="text-muted-foreground">
-                    Developed distributed system handling 10M+ sensor readings per hour with predictive maintenance
-                    algorithms
-                  </p>
-                </div>
-                <div>
-                  <h3 className="font-bold">Financial Risk Analytics Engine</h3>
-                  <p className="text-muted-foreground">
-                    Built risk analytics platform using advanced statistical models, improving accuracy by 30% and
-                    reducing processing time by 60%
-                  </p>
-                </div>
-                <div>
-                  <h3 className="font-bold">Enterprise HR Data Platform</h3>
-                  <p className="text-muted-foreground">
-                    Developed unified HR data platform integrating 8+ systems, enabling advanced analytics and reducing
-                    reporting delays significantly.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Print Button */}
-            <div className="flex justify-end gap-2 pt-4 border-t print:hidden">
-              <Button variant="outline" onClick={() => window.print()}>
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Print Resume
-              </Button>
-              <Button onClick={() => setIsResumeOpen(false)}>Close</Button>
+          <div className="flex justify-center p-6">
+            <div className="w-full h-[70vh]">
+              <iframe
+                src="/StantonEdwards_Resume.pdf"
+                className="w-full h-full border-none"
+                title="Stanton Edwards Resume"
+              ></iframe>
             </div>
           </div>
+          <DialogHeader className="p-6 pt-2 flex flex-row items-center justify-between">
+            <Button asChild variant="outline" className="w-40 bg-transparent">
+              <a href="/StantonEdwards_Resume.pdf" download>
+                <FileText className="mr-2 h-4 w-4" />
+                Download Resume
+              </a>
+            </Button>
+            <Button onClick={() => setIsResumeOpen(false)} variant="secondary">
+              Close
+            </Button>
+          </DialogHeader>
         </DialogContent>
       </Dialog>
     </div>

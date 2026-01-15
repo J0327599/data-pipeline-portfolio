@@ -30,6 +30,8 @@ import {
   X,
   Zap,
   BarChart3,
+  CheckCircle2,
+  Download,
 } from "lucide-react"
 
 // Define ProjectDetail interface
@@ -1026,6 +1028,7 @@ import logging
 from datetime import datetime, timedelta
 import hashlib
 import json
+import requests # Added import
 
 class HRDataPlatform:
     """Enterprise HR Data Platform - ETL Orchestration"""
@@ -3080,16 +3083,644 @@ End Sub`,
   },
 }
 
+const downloadCV = async () => {
+  // Dynamically import jsPDF and html2canvas
+  const { default: jsPDF } = await import("jspdf")
+  const html2canvas = (await import("html2canvas")).default
+
+  // Create an isolated iframe to render CV without interference from page styles
+  const iframe = document.createElement("iframe")
+  iframe.style.position = "absolute"
+  iframe.style.left = "-9999px"
+  iframe.style.width = "210mm"
+  iframe.style.height = "297mm"
+  document.body.appendChild(iframe)
+
+  const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
+  if (!iframeDoc) {
+    document.body.removeChild(iframe)
+    alert("Error creating PDF. Please try again.")
+    return
+  }
+
+  // Write CV content with inline styles using only hex/rgb colors
+  iframeDoc.open()
+  iframeDoc.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+          width: 210mm; 
+          padding: 20mm; 
+          background: #ffffff; 
+          font-family: Arial, sans-serif; 
+          font-size: 11pt; 
+          line-height: 1.5; 
+          color: #333333; 
+        }
+        .cv-header { text-align: center; margin-bottom: 20px; border-bottom: 3px solid #1a365d; padding-bottom: 15px; }
+        .cv-header h1 { color: #1a365d; font-size: 28pt; margin-bottom: 8px; font-weight: bold; }
+        .cv-subtitle { color: #4a5568; font-size: 11pt; margin-bottom: 10px; }
+        .cv-contact { font-size: 10pt; color: #4a5568; }
+        .cv-section { margin-top: 20px; }
+        .cv-section h2 { color: #1a365d; font-size: 14pt; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px; margin-bottom: 12px; font-weight: bold; }
+        .cv-item { margin-bottom: 15px; }
+        .cv-item-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+        .cv-title { font-weight: bold; color: #1a365d; font-size: 12pt; }
+        .cv-company { color: #4a5568; font-size: 10pt; }
+        .cv-duration { color: #718096; font-size: 9pt; }
+        .cv-list { margin-left: 20px; margin-top: 6px; list-style-type: disc; }
+        .cv-list li { margin-bottom: 4px; font-size: 10pt; }
+        .cv-skills-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .cv-skill-box { background: #f7fafc; padding: 10px; border-radius: 4px; border: 1px solid #e2e8f0; }
+        .cv-skill-box h4 { color: #1a365d; font-size: 11pt; margin-bottom: 6px; font-weight: bold; }
+        .cv-badge { display: inline-block; background: #e2e8f0; padding: 2px 6px; border-radius: 3px; font-size: 9pt; margin: 2px; color: #1a365d; }
+        p { margin: 6px 0; }
+      </style>
+    </head>
+    <body>
+      <div class="cv-header">
+        <h1>STANTON EDWARDS</h1>
+        <div class="cv-subtitle">BI Manager | Big Data Enthusiast | Analytics Expert | Senior Data Engineer</div>
+        <div class="cv-contact">
+          stanton.edwards@outlook.com | 079 881 0997 | Johannesburg, South Africa
+        </div>
+      </div>
+
+      <div class="cv-section">
+        <h2>PROFESSIONAL SUMMARY</h2>
+        <p>Transforming raw data into actionable business insights through scalable infrastructure, advanced analytics, and cutting-edge big data technologies. Over 10 years of experience leading data science teams, developing ML models, and implementing enterprise analytics solutions across financial services and energy sectors.</p>
+      </div>
+
+      <div class="cv-section">
+        <h2>PROFESSIONAL EXPERIENCE</h2>
+        
+        <div class="cv-item">
+          <div class="cv-item-header">
+            <div>
+              <div class="cv-title">Data Analytics & AI Lead</div>
+              <div class="cv-company">TotalEnergies • Finance & IS Management • Johannesburg</div>
+            </div>
+            <div class="cv-duration">2024 - Present</div>
+          </div>
+          <ul class="cv-list">
+            <li>Lead team of 12 data scientists, analysts, and ML engineers across advanced analytics and AI/ML functions</li>
+            <li>Delivered €120M+ in measurable business value across retail, commercial, and trading operations</li>
+            <li>Built customer insights platform using ML/NLP, increasing retention by 28% and conversion by 35%</li>
+            <li>Implemented real-time risk analytics processing 5M+ transactions daily with 99.2% accuracy</li>
+            <li>Championed data-driven culture through Power BI dashboards enabling 500+ business users</li>
+          </ul>
+        </div>
+
+        <div class="cv-item">
+          <div class="cv-item-header">
+            <div>
+              <div class="cv-title">BI Solutions Architect - Data & Analytics</div>
+              <div class="cv-company">TotalEnergies • Retail and B2B • Johannesburg</div>
+            </div>
+            <div class="cv-duration">2022 - 2024</div>
+          </div>
+          <ul class="cv-list">
+            <li>Designed scalable, secure data solutions aligned with digital transformation initiatives</li>
+            <li>Architected cloud-native solutions across Azure, AWS, and GCP (data lakes, warehouses, lakehouses)</li>
+            <li>Developed data models ensuring consistency, quality, and lineage across enterprise systems</li>
+            <li>Embedded data governance and ensured POPIA/GDPR compliance with robust security controls</li>
+          </ul>
+        </div>
+
+        <div class="cv-item">
+          <div class="cv-item-header">
+            <div>
+              <div class="cv-title">Senior Data Engineer & Analytics Lead</div>
+              <div class="cv-company">TotalEnergies • Retail and B2B</div>
+            </div>
+            <div class="cv-duration">2019 - 2022</div>
+          </div>
+          <ul class="cv-list">
+            <li>Led team of 8 engineers delivering advanced analytics solutions and ML model deployment</li>
+            <li>Built customer segmentation models driving 45% improvement in marketing ROI and 32% increase in lifetime value</li>
+            <li>Reduced B2B customer churn by 28% through predictive analytics and proactive retention strategies</li>
+            <li>Optimized Spark jobs reducing processing time by 70% and infrastructure costs by 45%</li>
+            <li>Implemented real-time streaming analytics processing 50M+ events daily with sub-second latency</li>
+          </ul>
+        </div>
+
+        <div class="cv-item">
+          <div class="cv-item-header">
+            <div>
+              <div class="cv-title">Data Engineer & Business Analyst</div>
+              <div class="cv-company">DataFlow Analytics</div>
+            </div>
+            <div class="cv-duration">2016 - 2019</div>
+          </div>
+          <ul class="cv-list">
+            <li>Led requirements gathering with C-level executives, translating business needs into technical solutions</li>
+            <li>Conducted comprehensive process analysis and cost-benefit assessments improving operational efficiency by 35%</li>
+            <li>Built ETL pipelines processing 100GB+ daily using Apache Airflow and Python</li>
+            <li>Developed statistical models in Python/R for customer behavior analysis and churn prediction</li>
+            <li>Created executive dashboards in Tableau combining complex data signals into actionable insights</li>
+            <li>Facilitated stakeholder workshops defining KPIs and metrics driving business strategy</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="cv-section">
+        <h2>TECHNICAL SKILLS</h2>
+        <div class="cv-skills-grid">
+          <div class="cv-skill-box">
+            <h4>AI & Machine Learning</h4>
+            <div>Machine Learning, Deep Learning, NLP, Predictive Analytics, TensorFlow, PyTorch, Scikit-learn</div>
+          </div>
+          <div class="cv-skill-box">
+            <h4>Analytics & Visualization</h4>
+            <div>Power BI, Tableau, Advanced Excel, Looker, Statistical Analysis (SAS/R), Data Storytelling</div>
+          </div>
+          <div class="cv-skill-box">
+            <h4>Big Data Technologies</h4>
+            <div>Apache Spark, Hadoop, Kafka, Real-time Streaming, Databricks, EMR, Data Lakehouse Architecture</div>
+          </div>
+          <div class="cv-skill-box">
+            <h4>Cloud Computing</h4>
+            <div>AWS (EC2, EMR, Redshift, SageMaker), Azure (ML, Data Factory, Synapse), GCP (BigQuery, AI Platform)</div>
+          </div>
+          <div class="cv-skill-box">
+            <h4>Programming Languages</h4>
+            <div>Python (Pandas, NumPy, Scikit-learn), R (Statistical Modeling), SQL, SAS, Scala, Java</div>
+          </div>
+          <div class="cv-skill-box">
+            <h4>Leadership & Strategy</h4>
+            <div>Team Leadership, Mentoring, Analytics Strategy, Stakeholder Management, Agile, Scrum</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cv-section">
+        <h2>KEY PROJECTS</h2>
+        <div class="cv-item">
+          <div class="cv-title">Credit Lifecycle BI & Reporting Platform</div>
+          <div><span class="cv-badge">SQL Server</span><span class="cv-badge">Python</span><span class="cv-badge">MS Access</span><span class="cv-badge">PowerPoint VBA</span></div>
+          <p>Automated credit lifecycle reporting reducing generation time from 7 days to 1 day for executive presentations.</p>
+        </div>
+        <div class="cv-item">
+          <div class="cv-title">Enterprise HR Data Platform</div>
+          <div><span class="cv-badge">Azure SQL</span><span class="cv-badge">Alteryx</span><span class="cv-badge">Python</span><span class="cv-badge">Power BI</span></div>
+          <p>Implemented medallion architecture integrating multiple HRIS systems enabling real-time workforce analytics.</p>
+        </div>
+        <div class="cv-item">
+          <div class="cv-title">Insurance Analytics Platform</div>
+          <div><span class="cv-badge">SQL</span><span class="cv-badge">Python</span><span class="cv-badge">Power BI</span><span class="cv-badge">ML</span></div>
+          <p>Improved underwriting efficiency by 40% and reduced loss ratios by 18% through predictive analytics.</p>
+        </div>
+        <div class="cv-item">
+          <div class="cv-title">Real-time Fraud Detection Pipeline</div>
+          <div><span class="cv-badge">Kafka</span><span class="cv-badge">Spark</span><span class="cv-badge">Python</span><span class="cv-badge">AWS</span></div>
+          <p>Processed 5M+ transactions daily with 99.2% accuracy reducing false positives by 60%.</p>
+        </div>
+      </div>
+
+      <div class="cv-section">
+        <h2>EDUCATION</h2>
+        <div class="cv-item">
+          <div class="cv-title">Bachelor of Science in Computer Science & Statistics</div>
+          <div class="cv-company">University of Johannesburg (2013 - 2016)</div>
+          <p>Specialization in Data Science, Machine Learning, and Statistical Analysis</p>
+        </div>
+      </div>
+
+      <div class="cv-section">
+        <h2>CERTIFICATIONS</h2>
+        <ul class="cv-list">
+          <li>AWS Certified Solutions Architect - Professional</li>
+          <li>Microsoft Certified: Azure Data Engineer Associate</li>
+          <li>Google Cloud Professional Data Engineer</li>
+          <li>TOGAF 9 Certified</li>
+          <li>Certified Analytics Professional (CAP)</li>
+        </ul>
+      </div>
+    </body>
+    </html>
+  `)
+  iframeDoc.close()
+
+  // Wait for iframe to fully load
+  await new Promise((resolve) => setTimeout(resolve, 500))
+
+  try {
+    // Convert iframe content to canvas with explicit white background
+    const canvas = await html2canvas(iframeDoc.body, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: "#ffffff",
+      windowWidth: 794, // A4 width at 96dpi
+      windowHeight: 1123, // A4 height at 96dpi
+    })
+
+    // Create PDF
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    })
+
+    const imgWidth = 210 // A4 width in mm
+    const imgHeight = (canvas.height * imgWidth) / canvas.width
+    const pageHeight = 297 // A4 height in mm
+    let heightLeft = imgHeight
+    let position = 0
+
+    // Add first page
+    pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, position, imgWidth, imgHeight)
+    heightLeft -= pageHeight
+
+    // Add additional pages if needed
+    while (heightLeft >= 0) {
+      position = heightLeft - imgHeight
+      pdf.addPage()
+      pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, position, imgWidth, imgHeight)
+      heightLeft -= pageHeight
+    }
+
+    // Download PDF
+    pdf.save("Stanton_Edwards_CV.pdf")
+  } catch (error) {
+    console.error("Error generating PDF:", error)
+    alert(`There was an error generating the PDF: ${error}. Please try again.`)
+  } finally {
+    // Remove iframe
+    document.body.removeChild(iframe)
+  }
+}
+
 export default function Portfolio() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [isResumeOpen, setIsResumeOpen] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false) // Renamed state variable
+
+  // const downloadCV = () => {
+  //   // Create a new window with the CV content
+  //   const cvWindow = window.open("", "_blank")
+  //   if (!cvWindow) return
+
+  //   // Generate comprehensive CV HTML
+  //   const cvHTML = `
+  // <!DOCTYPE html>
+  // <html>
+  // <head>
+  //   <meta charset="UTF-8">
+  //   <title>Stanton Edwards - CV</title>
+  //   <style>
+  //     * { margin: 0; padding: 0; box-sizing: border-box; }
+  //     body {
+  //       font-family: 'Arial', sans-serif;
+  //       line-height: 1.6;
+  //       color: #333;
+  //       padding: 40px;
+  //       max-width: 210mm;
+  //       margin: 0 auto;
+  //     }
+  //     h1 {
+  //       color: #1a365d;
+  //       font-size: 32px;
+  //       margin-bottom: 10px;
+  //       border-bottom: 3px solid #1a365d;
+  //       padding-bottom: 10px;
+  //     }
+  //     h2 {
+  //       color: #1a365d;
+  //       font-size: 20px;
+  //       margin-top: 25px;
+  //       margin-bottom: 15px;
+  //       border-bottom: 2px solid #e2e8f0;
+  //       padding-bottom: 5px;
+  //     }
+  //     h3 {
+  //       color: #2d3748;
+  //       font-size: 16px;
+  //       margin-top: 15px;
+  //       margin-bottom: 8px;
+  //     }
+  //     .header {
+  //       text-align: center;
+  //       margin-bottom: 30px;
+  //     }
+  //     .subtitle {
+  //       color: #4a5568;
+  //       font-size: 16px;
+  //       margin-bottom: 15px;
+  //     }
+  //     .contact-info {
+  //       display: flex;
+  //       justify-content: center;
+  //       gap: 20px;
+  //       flex-wrap: wrap;
+  //       margin-bottom: 20px;
+  //       font-size: 14px;
+  //     }
+  //     .contact-item {
+  //       display: flex;
+  //       align-items: center;
+  //       gap: 5px;
+  //     }
+  //     .summary {
+  //       background: #f7fafc;
+  //       padding: 15px;
+  //       border-left: 4px solid #1a365d;
+  //       margin-bottom: 25px;
+  //       font-size: 14px;
+  //     }
+  //     .experience-item, .project-item {
+  //       margin-bottom: 20px;
+  //       page-break-inside: avoid;
+  //     }
+  //     .experience-header {
+  //       display: flex;
+  //       justify-content: space-between;
+  //       align-items: flex-start;
+  //       margin-bottom: 8px;
+  //     }
+  //     .job-title {
+  //       font-weight: bold;
+  //       font-size: 16px;
+  //       color: #1a365d;
+  //     }
+  //     .company {
+  //       color: #4a5568;
+  //       font-size: 14px;
+  //     }
+  //     .duration {
+  //       color: #718096;
+  //       font-size: 13px;
+  //       white-space: nowrap;
+  //     }
+  //     ul {
+  //       margin-left: 20px;
+  //       margin-top: 8px;
+  //     }
+  //     li {
+  //       margin-bottom: 6px;
+  //       font-size: 13px;
+  //       line-height: 1.5;
+  //     }
+  //     .skills-grid {
+  //       display: grid;
+  //       grid-template-columns: repeat(2, 1fr);
+  //       gap: 15px;
+  //       margin-top: 15px;
+  //     }
+  //     .skill-category {
+  //       background: #f7fafc;
+  //       padding: 12px;
+  //       border-radius: 5px;
+  //     }
+  //     .skill-category h4 {
+  //       color: #1a365d;
+  //       margin-bottom: 8px;
+  //       font-size: 14px;
+  //     }
+  //     .skill-list {
+  //       font-size: 12px;
+  //       line-height: 1.8;
+  //     }
+  //     .badge {
+  //       display: inline-block;
+  //       background: #e2e8f0;
+  //       padding: 3px 8px;
+  //       border-radius: 3px;
+  //       font-size: 11px;
+  //       margin-right: 5px;
+  //       margin-bottom: 5px;
+  //     }
+  //     .project-item {
+  //       background: #f7fafc;
+  //       padding: 15px;
+  //       border-radius: 5px;
+  //       margin-bottom: 15px;
+  //     }
+  //     @media print {
+  //       body { padding: 20px; }
+  //       .page-break { page-break-before: always; }
+  //     }
+  //   </style>
+  // </head>
+  // <body>
+  //   <div class="header">
+  //     <h1>STANTON EDWARDS</h1>
+  //     <p class="subtitle">BI Manager | Big Data Enthusiast | Analytics Expert | Senior Data Engineer</p>
+  //     <div class="contact-info">
+  //       <div class="contact-item">📧 stanton.edwards@outlook.com</div>
+  //       <div class="contact-item">📱 079 881 0997</div>
+  //       <div class="contact-item">📍 Johannesburg, South Africa</div>
+  //     </div>
+  //   </div>
+
+  //   <div class="summary">
+  //     <strong>Professional Summary:</strong> Transforming raw data into actionable business insights through scalable infrastructure, advanced analytics, and cutting-edge big data technologies. Over 10 years of experience leading data science teams, developing ML models, and implementing enterprise analytics solutions across financial services and energy sectors.
+  //   </div>
+
+  //   <h2>PROFESSIONAL EXPERIENCE</h2>
+
+  //   <div class="experience-item">
+  //     <div class="experience-header">
+  //       <div>
+  //         <div class="job-title">Data Analytics & AI Lead</div>
+  //         <div class="company">TotalEnergies • Finance & IS Management • Rosebank Johannesburg</div>
+  //       </div>
+  //       <div class="duration">2024 - Present</div>
+  //     </div>
+  //     <ul>
+  //       <li>Lead a team of 12 data scientists, analysts, and ML engineers across advanced analytics, AI/ML, and business intelligence functions supporting TotalEnergies' energy transition strategy</li>
+  //       <li>Developed and executed enterprise analytics strategy aligned with TotalEnergies' digital transformation initiatives, delivering €120M+ in measurable business value across retail, commercial, and trading operations</li>
+  //       <li>Built best-in-class customer insights and personalization platform using ML/NLP for fuel retail operations, increasing customer retention by 28% and cross-sell conversion by 35%</li>
+  //       <li>Implemented real-time risk analytics and automated decision-making systems for commodity trading, processing 5M+ transactions daily with 99.2% accuracy</li>
+  //       <li>Established AI ethics framework and governance policies ensuring fairness, transparency, and POPIA compliance across all ML models</li>
+  //       <li>Championed data-driven culture through Power BI dashboards and self-service analytics, enabling 500+ business users across finance, operations, and commercial functions</li>
+  //       <li>Led predictive analytics initiatives for energy demand forecasting and pricing optimization, reducing forecast errors by 22% and improving margin optimization by 18%</li>
+  //     </ul>
+  //   </div>
+
+  //   <div class="experience-item">
+  //     <div class="experience-header">
+  //       <div>
+  //         <div class="job-title">BI Solutions Architect - Data & Analytics</div>
+  //         <div class="company">TotalEnergies • Retail and B2B • Rosebank Johannesburg</div>
+  //       </div>
+  //       <div class="duration">2022 - 2024</div>
+  //     </div>
+  //     <ul>
+  //       <li>Designed scalable, secure, and high-performance data solutions aligned with business requirements and digital transformation initiatives</li>
+  //       <li>Architected cloud-native data solutions across Azure, AWS, and GCP, implementing data lakes, warehouses, and lakehouses</li>
+  //       <li>Developed conceptual, logical, and physical data models ensuring data consistency, quality, and lineage across enterprise systems</li>
+  //       <li>Embedded data governance principles and ensured compliance with POPIA and GDPR regulations through robust security controls</li>
+  //       <li>Led technical architecture reviews and mentored data engineering teams on best practices using TOGAF frameworks</li>
+  //     </ul>
+  //   </div>
+
+  //   <div class="experience-item">
+  //     <div class="experience-header">
+  //       <div>
+  //         <div class="job-title">Senior Data Engineer & Analytics Lead</div>
+  //         <div class="company">TotalEnergies • Retail and B2B</div>
+  //       </div>
+  //       <div class="duration">2019 - 2022</div>
+  //     </div>
+  //     <ul>
+  //       <li>Led analytics team of 8 engineers delivering advanced analytics solutions and ML model deployment for retail fuel stations and B2B energy clients</li>
+  //       <li>Built customer segmentation and propensity models using Python/R, driving 45% improvement in marketing campaign ROI and increasing customer lifetime value by 32%</li>
+  //       <li>Developed customer churn prediction models identifying at-risk accounts, enabling proactive retention strategies that reduced B2B customer attrition by 28%</li>
+  //       <li>Implemented personalized pricing engine for commercial clients based on consumption patterns, improving customer satisfaction scores by 40% while maintaining margins</li>
+  //       <li>Optimized Spark jobs reducing processing time by 70% and infrastructure costs by 45%</li>
+  //       <li>Implemented real-time streaming analytics processing 50M+ events daily with sub-second latency for fuel station transactions and loyalty programs</li>
+  //       <li>Established data quality frameworks and automated testing, reducing data incidents by 85%</li>
+  //     </ul>
+  //   </div>
+
+  //   <div class="page-break"></div>
+
+  //   <div class="experience-item">
+  //     <div class="experience-header">
+  //       <div>
+  //         <div class="job-title">Data Engineer & Business Analyst</div>
+  //         <div class="company">DataFlow Analytics</div>
+  //       </div>
+  //       <div class="duration">2016 - 2019</div>
+  //     </div>
+  //     <ul>
+  //       <li>Led requirements gathering and stakeholder engagement sessions with C-level executives, translating complex business needs into technical solutions and data strategies</li>
+  //       <li>Conducted comprehensive process analysis and mapping, identifying bottlenecks and optimization opportunities that improved operational efficiency by 35%</li>
+  //       <li>Built and maintained ETL pipelines processing 100GB+ daily using Apache Airflow and Python</li>
+  //       <li>Developed statistical models in Python/R for customer behavior analysis and churn prediction, providing actionable insights that informed strategic business decisions</li>
+  //       <li>Created executive dashboards in Tableau combining complex data signals into actionable insights, facilitating data-driven decision-making across multiple business units</li>
+  //       <li>Performed cost-benefit analysis and ROI modeling for proposed initiatives, ensuring alignment with business objectives and optimal resource allocation</li>
+  //       <li>Collaborated with data scientist to productionize ML models serving 1M+ predictions daily while maintaining comprehensive documentation and user acceptance testing</li>
+  //     </ul>
+  //   </div>
+
+  //   <h2>TECHNICAL SKILLS</h2>
+  //   <div class="skills-grid">
+  //     <div class="skill-category">
+  //       <h4>AI & Machine Learning</h4>
+  //       <div class="skill-list">
+  //         • Machine Learning & Deep Learning<br>
+  //         • Natural Language Processing<br>
+  //         • Predictive Analytics<br>
+  //         • TensorFlow, PyTorch, Scikit-learn
+  //       </div>
+  //     </div>
+  //     <div class="skill-category">
+  //       <h4>Analytics & Visualization</h4>
+  //       <div class="skill-list">
+  //         • Power BI & Tableau<br>
+  //         • Advanced Excel & Looker<br>
+  //         • Statistical Analysis (SAS/R)<br>
+  //         • Data Storytelling
+  //       </div>
+  //     </div>
+  //     <div class="skill-category">
+  //       <h4>Big Data Technologies</h4>
+  //       <div class="skill-list">
+  //         • Apache Spark & Hadoop<br>
+  //         • Kafka & Real-time Streaming<br>
+  //         • Databricks & EMR<br>
+  //         • Data Lakehouse Architecture
+  //       </div>
+  //     </div>
+  //     <div class="skill-category">
+  //       <h4>Cloud Computing</h4>
+  //       <div class="skill-list">
+  //         • AWS (EC2, EMR, Redshift, SageMaker)<br>
+  //         • Azure (ML, Data Factory, Synapse)<br>
+  //         • GCP (BigQuery, AI Platform)<br>
+  //         • Cloud Architecture Design
+  //       </div>
+  //     </div>
+  //     <div class="skill-category">
+  //       <h4>Programming Languages</h4>
+  //       <div class="skill-list">
+  //         • Python (Pandas, NumPy, Scikit-learn)<br>
+  //         • R (Statistical Modeling)<br>
+  //         • SQL & SAS<br>
+  //         • Scala & Java
+  //       </div>
+  //     </div>
+  //     <div class="skill-category">
+  //       <h4>Leadership & Strategy</h4>
+  //       <div class="skill-list">
+  //         • Team Leadership & Mentoring<br>
+  //         • Analytics Strategy Development<br>
+  //         • Stakeholder Management<br>
+  //         • Agile & Scrum Methodologies
+  //       </div>
+  //     </div>
+  //   </div>
+
+  //   <h2>FEATURED PROJECTS</h2>
+
+  //   <div class="project-item">
+  //     <h3>Credit Lifecycle BI & Reporting Platform</h3>
+  //     <div><span class="badge">SQL Server</span><span class="badge">Python</span><span class="badge">MS Access</span><span class="badge">PowerPoint VBA</span></div>
+  //     <p>Built comprehensive BI platform for Business & Commercial Banking, automating credit lifecycle reporting and reducing report generation time from 7 days to 1 day. Integrated data from multiple systems for executive presentations.</p>
+  //   </div>
+
+  //   <div class="project-item">
+  //     <h3>Enterprise HR Data Platform</h3>
+  //     <div><span class="badge">Azure SQL</span><span class="badge">Alteryx</span><span class="badge">Python</span><span class="badge">Power BI</span></div>
+  //     <p>Designed and implemented medallion architecture (Bronze/Silver/Gold) for HR data platform, integrating multiple HRIS and payroll systems. Automated workflows with Alteryx, enabling real-time workforce analytics.</p>
+  //   </div>
+
+  //   <div class="project-item">
+  //     <h3>Insurance Analytics & Insights Platform</h3>
+  //     <div><span class="badge">SQL</span><span class="badge">Python</span><span class="badge">Power BI</span><span class="badge">ML</span></div>
+  //     <p>Improved underwriting efficiency by 40% and reduced loss ratios by 18% through predictive analytics.</p>
+  //   </div>
+
+  //   <div class="project-item">
+  //     <h3>Real-time Fraud Detection Pipeline</h3>
+  //     <div><span class="badge">Kafka</span><span class="badge">Spark</span><span class="badge">Python</span><span class="badge">AWS</span></div>
+  //     <p>Processed 5M+ transactions daily with 99.2% accuracy reducing false positives by 60%.</p>
+  //   </div>
+
+  //   <h2>EDUCATION</h2>
+  //   <div class="experience-item">
+  //     <div class="experience-header">
+  //       <div>
+  //         <div class="job-title">Bachelor of Science in Computer Science & Statistics</div>
+  //         <div class="company">University of Johannesburg</div>
+  //       </div>
+  //       <div class="duration">2013 - 2016</div>
+  //     </div>
+  //     <p>Specialization in Data Science, Machine Learning, and Statistical Analysis</p>
+  //   </div>
+
+  //   <h2>CERTIFICATIONS</h2>
+  //   <ul>
+  //     <li>AWS Certified Solutions Architect - Professional</li>
+  //     <li>Microsoft Certified: Azure Data Engineer Associate</li>
+  //     <li>Google Cloud Professional Data Engineer</li>
+  //     <li>TOGAF 9 Certified</li>
+  //     <li>Certified Analytics Professional (CAP)</li>
+  //   </ul>
+
+  // </body>
+  // </html>
+  //   `
+
+  //   cvWindow.document.write(cvHTML)
+  //   cvWindow.document.close()
+
+  //   // Wait for content to load, then trigger print dialog
+  //   setTimeout(() => {
+  //     cvWindow.print()
+  //   }, 500)
+  // }
 
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId)
     if (element) {
       element.scrollIntoView({ behavior: "smooth" })
-      setMobileMenuOpen(false) // Close mobile menu after navigation
+      setIsMobileMenuOpen(false) // Close mobile menu after navigation
     }
   }
 
@@ -3146,15 +3777,15 @@ export default function Portfolio() {
 
             {/* Mobile Menu Button */}
             <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="md:hidden p-2 hover:bg-muted rounded-lg transition-colors"
             >
-              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
           </div>
 
           {/* Mobile Navigation */}
-          {mobileMenuOpen && (
+          {isMobileMenuOpen && (
             <div className="md:hidden mt-4 pb-4 space-y-2">
               <button
                 onClick={() => scrollToSection("home")}
@@ -3224,9 +3855,9 @@ export default function Portfolio() {
                 Get In Touch
               </a>
             </Button>
-            <Button variant="outline" size="lg" className="bg-transparent" onClick={() => setIsResumeOpen(true)}>
-              <FileText className="h-5 w-5" />
-              View CV
+            <Button variant="outline" size="lg" className="bg-transparent" onClick={downloadCV}>
+              <Download className="h-5 w-5 mr-2" />
+              Download CV
             </Button>
           </div>
         </div>
@@ -3627,7 +4258,299 @@ export default function Portfolio() {
       <section id="projects" className="py-16 px-4 bg-muted/30">
         <div className="max-w-6xl mx-auto">
           <h2 className="text-4xl font-serif font-bold text-center mb-12 text-balance">Featured Projects</h2>
-          <div className="grid md:grid-cols-2 gap-8">
+          <div className="grid md:grid-cols-2 gap-6">
+            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-xl mb-2">Insurance Analytics & Insights Platform</CardTitle>
+                    <CardDescription className="text-base">
+                      Real-time analytics for policy performance, claims trends, and customer behavior
+                    </CardDescription>
+                  </div>
+                  <FileSpreadsheet className="h-8 w-8 text-accent flex-shrink-0" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Built an Insurance Analytics platform handling unstructured data from policy administration, claims,
+                    and customer interactions. Enabled real-time analytics for operational and strategic decisions,
+                    improving risk management and customer engagement.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">SQL Server</Badge>
+                    <Badge variant="secondary">Python</Badge>
+                    <Badge variant="secondary">Power BI</Badge>
+                    <Badge variant="secondary">Scikit-learn</Badge>
+                    <Badge variant="secondary">PyODBC</Badge>
+                  </div>
+                  <div className="pt-2">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <ExternalLink className="mr-2 h-3 w-3" />
+                          View Details
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle className="text-2xl font-serif">
+                            {projectDetails["insurance-analytics"].title}
+                          </DialogTitle>
+                        </DialogHeader>
+                        <Tabs defaultValue="problem" className="w-full">
+                          <TabsList className="grid w-full grid-cols-4">
+                            <TabsTrigger value="problem">Problem</TabsTrigger>
+                            <TabsTrigger value="architecture">Architecture</TabsTrigger>
+                            <TabsTrigger value="solution">Solution</TabsTrigger>
+                            <TabsTrigger value="code">Code</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="problem" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Problem Statement</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <p className="text-muted-foreground leading-relaxed">
+                                  {projectDetails["insurance-analytics"].problemStatement}
+                                </p>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="architecture" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>System Architecture</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <img
+                                  src={projectDetails["insurance-analytics"].architecture || "/placeholder.svg"}
+                                  alt="Insurance Analytics Architecture"
+                                  className="w-full rounded-lg border"
+                                />
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="solution" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Technical Solution</CardTitle>
+                              </CardHeader>
+                              <CardContent className="space-y-4">
+                                <div className="grid md:grid-cols-2 gap-4">
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Key Components:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• SQL Server for data modeling</li>
+                                      <li>• Python for analytics, ML, and data processing</li>
+                                      <li>• Power BI for interactive dashboards</li>
+                                      <li>• Churn prediction models (Random Forest)</li>
+                                      <li>• Customer segmentation (RFM analysis)</li>
+                                      <li>• Claims root cause analysis</li>
+                                    </ul>
+                                  </div>
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Results Achieved:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• Real-time insights into policy & claims performance</li>
+                                      <li>• Proactive risk management</li>
+                                      <li>• Personalized customer engagement</li>
+                                      <li>• Reduced reporting time by 70%+</li>
+                                      <li>• Improved marketing ROI by 45%</li>
+                                    </ul>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="code" className="space-y-4">
+                            <Tabs defaultValue="sql" className="w-full">
+                              <TabsList>
+                                <TabsTrigger value="sql">SQL</TabsTrigger>
+                                <TabsTrigger value="python">Python</TabsTrigger>
+                                <TabsTrigger value="powerbi">Power BI</TabsTrigger>
+                              </TabsList>
+                              <TabsContent value="sql">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <Database className="h-5 w-5" />
+                                      SQL - Insurance Analytics Models
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                      <code>{projectDetails["insurance-analytics"].solution.sql}</code>
+                                    </pre>
+                                  </CardContent>
+                                </Card>
+                              </TabsContent>
+                              <TabsContent value="python">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <Code className="h-5 w-5" />
+                                      Python - Analytics & ML
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                      <code>{projectDetails["insurance-analytics"].solution.python}</code>
+                                    </pre>
+                                  </CardContent>
+                                </Card>
+                              </TabsContent>
+                              <TabsContent value="powerbi">
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <FileText className="h-5 w-5" />
+                                      Power BI - Analytics Dashboard
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                      <code>{projectDetails["insurance-analytics"].solution.powerbi}</code>
+                                    </pre>
+                                  </CardContent>
+                                </Card>
+                              </TabsContent>
+                            </Tabs>
+                          </TabsContent>
+                        </Tabs>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-xl mb-2">Customer Analytics Data Warehouse</CardTitle>
+                    <CardDescription className="text-base">
+                      Enterprise data warehouse for customer insights and marketing analytics
+                    </CardDescription>
+                  </div>
+                  <BarChart3 className="h-8 w-8 text-accent flex-shrink-0" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Designed and implemented a cloud-native data warehouse consolidating data from 15+ sources to enable
+                    360° customer view and advanced analytics with 200TB+ data.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">Snowflake</Badge>
+                    <Badge variant="secondary">dbt</Badge>
+                    <Badge variant="secondary">Airflow</Badge>
+                    <Badge variant="secondary">Python</Badge>
+                    <Badge variant="secondary">SQL</Badge>
+                  </div>
+                  <div className="pt-2">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <ExternalLink className="mr-2 h-3 w-3" />
+                          View Details
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle className="text-2xl font-serif">
+                            {projectDetails["customer-warehouse"].title}
+                          </DialogTitle>
+                        </DialogHeader>
+                        <Tabs defaultValue="problem" className="w-full">
+                          <TabsList className="grid w-full grid-cols-4">
+                            <TabsTrigger value="problem">Problem</TabsTrigger>
+                            <TabsTrigger value="architecture">Architecture</TabsTrigger>
+                            <TabsTrigger value="solution">Solution</TabsTrigger>
+                            <TabsTrigger value="code">Code</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="problem" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Problem Statement</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <p className="text-muted-foreground leading-relaxed">
+                                  {projectDetails["customer-warehouse"].problemStatement}
+                                </p>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="architecture" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>System Architecture</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <img
+                                  src={projectDetails["customer-warehouse"].architecture || "/placeholder.svg"}
+                                  alt="Data Warehouse Architecture"
+                                  className="w-full rounded-lg border"
+                                />
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="solution" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>Technical Solution</CardTitle>
+                              </CardHeader>
+                              <CardContent className="space-y-4">
+                                <div className="grid md:grid-cols-2 gap-4">
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Key Components:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• Snowflake data warehouse</li>
+                                      <li>• dbt for data transformations</li>
+                                      <li>• Airflow for orchestration</li>
+                                      <li>• Star schema data modeling</li>
+                                      <li>• Incremental loading strategies</li>
+                                    </ul>
+                                  </div>
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Results Achieved:</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>• 200TB+ of customer data consolidated</li>
+                                      <li>• Query performance improved by 10x</li>
+                                      <li>• 360° customer view enabled</li>
+                                      <li>• Self-service analytics for 500+ users</li>
+                                    </ul>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          <TabsContent value="code" className="space-y-4">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                  <Database className="h-5 w-5" />
+                                  SQL - Data Modeling with dbt
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                                  <code>{projectDetails["customer-warehouse"].solution}</code>
+                                </pre>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                        </Tabs>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -3811,11 +4734,12 @@ export default function Portfolio() {
                 </div>
               </CardContent>
             </Card>
+
             <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
-                    <CardTitle className="text-xl mb-2">HR Data Platform</CardTitle>
+                    <CardTitle className="text-xl mb-2">Enterprise HR Data Platform</CardTitle>
                     <CardDescription className="text-base">
                       Unified HR data platform for workforce analytics, compliance, and executive reporting
                     </CardDescription>
@@ -3998,173 +4922,6 @@ export default function Portfolio() {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
-                    <CardTitle className="text-xl mb-2">Insurance Analytics & Insights Platform</CardTitle>
-                    <CardDescription className="text-base">
-                      Real-time analytics for policy performance, claims trends, and customer behavior
-                    </CardDescription>
-                  </div>
-                  <FileSpreadsheet className="h-8 w-8 text-accent flex-shrink-0" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Built an Insurance Analytics platform handling unstructured data from policy administration, claims,
-                    and customer interactions. Enabled real-time analytics for operational and strategic decisions,
-                    improving risk management and customer engagement.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary">SQL Server</Badge>
-                    <Badge variant="secondary">Python</Badge>
-                    <Badge variant="secondary">Power BI</Badge>
-                    <Badge variant="secondary">Scikit-learn</Badge>
-                    <Badge variant="secondary">PyODBC</Badge>
-                  </div>
-                  <div className="pt-2">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <ExternalLink className="mr-2 h-3 w-3" />
-                          View Details
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                          <DialogTitle className="text-2xl font-serif">
-                            {projectDetails["insurance-analytics"].title}
-                          </DialogTitle>
-                        </DialogHeader>
-                        <Tabs defaultValue="problem" className="w-full">
-                          <TabsList className="grid w-full grid-cols-4">
-                            <TabsTrigger value="problem">Problem</TabsTrigger>
-                            <TabsTrigger value="architecture">Architecture</TabsTrigger>
-                            <TabsTrigger value="solution">Solution</TabsTrigger>
-                            <TabsTrigger value="code">Code</TabsTrigger>
-                          </TabsList>
-                          <TabsContent value="problem" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>Problem Statement</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <p className="text-muted-foreground leading-relaxed">
-                                  {projectDetails["insurance-analytics"].problemStatement}
-                                </p>
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="architecture" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>System Architecture</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <img
-                                  src={projectDetails["insurance-analytics"].architecture || "/placeholder.svg"}
-                                  alt="Insurance Analytics Architecture"
-                                  className="w-full rounded-lg border"
-                                />
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="solution" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>Technical Solution</CardTitle>
-                              </CardHeader>
-                              <CardContent className="space-y-4">
-                                <div className="grid md:grid-cols-2 gap-4">
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Key Components:</h4>
-                                    <ul className="text-sm text-muted-foreground space-y-1">
-                                      <li>• SQL Server for data modeling</li>
-                                      <li>• Python for analytics, ML, and data processing</li>
-                                      <li>• Power BI for interactive dashboards</li>
-                                      <li>• Churn prediction models (Random Forest)</li>
-                                      <li>• Customer segmentation (RFM analysis)</li>
-                                      <li>• Claims root cause analysis</li>
-                                    </ul>
-                                  </div>
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Results Achieved:</h4>
-                                    <ul className="text-sm text-muted-foreground space-y-1">
-                                      <li>• Real-time insights into policy & claims performance</li>
-                                      <li>• Proactive risk management</li>
-                                      <li>• Personalized customer engagement</li>
-                                      <li>• Reduced reporting time by 70%+</li>
-                                      <li>• Improved marketing ROI by 45%</li>
-                                    </ul>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="code" className="space-y-4">
-                            <Tabs defaultValue="sql" className="w-full">
-                              <TabsList>
-                                <TabsTrigger value="sql">SQL</TabsTrigger>
-                                <TabsTrigger value="python">Python</TabsTrigger>
-                                <TabsTrigger value="powerbi">Power BI</TabsTrigger>
-                              </TabsList>
-                              <TabsContent value="sql">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <Database className="h-5 w-5" />
-                                      SQL - Insurance Analytics Models
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["insurance-analytics"].solution.sql}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                              <TabsContent value="python">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <Code className="h-5 w-5" />
-                                      Python - Analytics & ML
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["insurance-analytics"].solution.python}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                              <TabsContent value="powerbi">
-                                <Card>
-                                  <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                      <FileText className="h-5 w-5" />
-                                      Power BI - Analytics Dashboard
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                      <code>{projectDetails["insurance-analytics"].solution.powerbi}</code>
-                                    </pre>
-                                  </CardContent>
-                                </Card>
-                              </TabsContent>
-                            </Tabs>
-                          </TabsContent>
-                        </Tabs>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
                     <CardTitle className="text-xl mb-2">Real-time Fraud Detection Pipeline</CardTitle>
                     <CardDescription className="text-base">
                       Streaming data pipeline processing millions of transactions for real-time fraud detection
@@ -4274,131 +5031,6 @@ export default function Portfolio() {
                               <CardContent>
                                 <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
                                   <code>{projectDetails["fraud-detection"].solution}</code>
-                                </pre>
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                        </Tabs>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-xl mb-2">Customer Analytics Data Warehouse</CardTitle>
-                    <CardDescription className="text-base">
-                      Enterprise data warehouse for customer insights and marketing analytics
-                    </CardDescription>
-                  </div>
-                  <BarChart3 className="h-8 w-8 text-accent flex-shrink-0" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Designed and implemented a cloud-native data warehouse consolidating data from 15+ sources to enable
-                    360° customer view and advanced analytics with 200TB+ data.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary">Snowflake</Badge>
-                    <Badge variant="secondary">dbt</Badge>
-                    <Badge variant="secondary">Airflow</Badge>
-                    <Badge variant="secondary">Python</Badge>
-                    <Badge variant="secondary">SQL</Badge>
-                  </div>
-                  <div className="pt-2">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <ExternalLink className="mr-2 h-3 w-3" />
-                          View Details
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                          <DialogTitle className="text-2xl font-serif">
-                            {projectDetails["customer-warehouse"].title}
-                          </DialogTitle>
-                        </DialogHeader>
-                        <Tabs defaultValue="problem" className="w-full">
-                          <TabsList className="grid w-full grid-cols-4">
-                            <TabsTrigger value="problem">Problem</TabsTrigger>
-                            <TabsTrigger value="architecture">Architecture</TabsTrigger>
-                            <TabsTrigger value="solution">Solution</TabsTrigger>
-                            <TabsTrigger value="code">Code</TabsTrigger>
-                          </TabsList>
-                          <TabsContent value="problem" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>Problem Statement</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <p className="text-muted-foreground leading-relaxed">
-                                  {projectDetails["customer-warehouse"].problemStatement}
-                                </p>
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="architecture" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>System Architecture</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <img
-                                  src={projectDetails["customer-warehouse"].architecture || "/placeholder.svg"}
-                                  alt="Data Warehouse Architecture"
-                                  className="w-full rounded-lg border"
-                                />
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="solution" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>Technical Solution</CardTitle>
-                              </CardHeader>
-                              <CardContent className="space-y-4">
-                                <div className="grid md:grid-cols-2 gap-4">
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Key Components:</h4>
-                                    <ul className="text-sm text-muted-foreground space-y-1">
-                                      <li>• Snowflake data warehouse</li>
-                                      <li>• dbt for data transformations</li>
-                                      <li>• Airflow for orchestration</li>
-                                      <li>• Star schema data modeling</li>
-                                      <li>• Incremental loading strategies</li>
-                                    </ul>
-                                  </div>
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Results Achieved:</h4>
-                                    <ul className="text-sm text-muted-foreground space-y-1">
-                                      <li>• 200TB+ of customer data consolidated</li>
-                                      <li>• Query performance improved by 10x</li>
-                                      <li>• 360° customer view enabled</li>
-                                      <li>• Self-service analytics for 500+ users</li>
-                                    </ul>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="code" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                  <Database className="h-5 w-5" />
-                                  SQL - Data Modeling with dbt
-                                </CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                  <code>{projectDetails["customer-warehouse"].solution}</code>
                                 </pre>
                               </CardContent>
                             </Card>
@@ -4687,29 +5319,64 @@ export default function Portfolio() {
       <Dialog open={isResumeOpen} onOpenChange={setIsResumeOpen}>
         <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-hidden p-0">
           <DialogHeader className="p-6 pb-2">
-            <DialogTitle className="text-2xl font-serif">Stanton Edwards - Resume</DialogTitle>
-            <DialogDescription>Download or view my detailed professional experience.</DialogDescription>
+            <DialogTitle className="text-2xl font-serif">Stanton Edwards - Curriculum Vitae</DialogTitle>
+            <DialogDescription>
+              Download a comprehensive PDF of my professional experience, skills, and achievements.
+            </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-center p-6">
-            <div className="w-full h-[70vh]">
-              <iframe
-                src="/StantonEdwards_Resume.pdf"
-                className="w-full h-full border-none"
-                title="Stanton Edwards Resume"
-              ></iframe>
+
+          <div className="space-y-6 py-6">
+            <div className="text-center space-y-4">
+              <div className="flex justify-center">
+                <FileText className="h-16 w-16 text-primary" />
+              </div>
+              <h3 className="text-xl font-semibold">Professional CV</h3>
+              <p className="text-muted-foreground max-w-2xl mx-auto">
+                Complete curriculum vitae including 10+ years of experience in data analytics, AI/ML leadership,
+                business intelligence, and advanced analytics across energy and financial services sectors.
+              </p>
+            </div>
+
+            <div className="bg-muted/50 rounded-lg p-6 space-y-4">
+              <h4 className="font-semibold text-lg">CV Includes:</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                  <span className="text-sm">Comprehensive work experience (2016-Present)</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                  <span className="text-sm">Technical skills & certifications</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                  <span className="text-sm">Featured project highlights</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                  <span className="text-sm">Education & professional qualifications</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                  <span className="text-sm">Leadership & team management experience</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                  <span className="text-sm">Contact information</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-center">
+              <Button onClick={downloadCV} size="lg" className="gap-2">
+                <Download className="h-5 w-5" />
+                Download CV as PDF
+              </Button>
+              <Button onClick={() => setIsResumeOpen(false)} variant="outline" size="lg">
+                Close
+              </Button>
             </div>
           </div>
-          <DialogHeader className="p-6 pt-2 flex flex-row items-center justify-between">
-            <Button asChild variant="outline" className="w-40 bg-transparent">
-              <a href="/StantonEdwards_Resume.pdf" download>
-                <FileText className="mr-2 h-4 w-4" />
-                Download Resume
-              </a>
-            </Button>
-            <Button onClick={() => setIsResumeOpen(false)} variant="secondary">
-              Close
-            </Button>
-          </DialogHeader>
         </DialogContent>
       </Dialog>
     </div>

@@ -28,7 +28,6 @@ import {
   TrendingUp,
   Users,
   X,
-  Zap,
   BarChart3,
   CheckCircle2,
   Download,
@@ -1362,13 +1361,7 @@ WORKFLOW COMPONENTS:
    - Email Tool: Send failure notifications
      * To: data-engineering@company.com
      * Subject: HR Data Pipeline Failed
-     * Body: Include error details and record counts
-
-WORKFLOW PERFORMANCE:
-- Average Runtime: 12 minutes
-- Records Processed: ~50,000 employees
-- Data Sources: 8 HRIS systems
-- Output Tables: 3 (Bronze, Silver, Gold)`,
+     * Body: Include error details and record counts`,
       powerbi: `// Power BI DAX Measures - HR Analytics Dashboard
 
 // ============================================
@@ -2710,7 +2703,6 @@ if __name__ == "__main__":
     # Run automated daily reports
     excel_file, ppt_file = reporter.automate_daily_reports()
     print(f"Reports generated successfully!")`,
-
       msaccess: `' MS Access VBA - Credit Data Management System
 ' Automated data import, validation, and export
 
@@ -3081,280 +3073,952 @@ ErrorHandler:
 End Sub`,
     },
   },
+  "fcrm-reporting": {
+    title: "Financial Crime Risk Management BI Platform",
+    problemStatement:
+      "The Financial Crime Risk Management (FCRM) team within Personal & Private Banking relied on fragmented, manually produced reports scattered across Excel workbooks, static email attachments, and ad-hoc SQL extractions. AML transaction monitoring, fraud detection case outcomes, and suspicious activity reporting (SAR) data lived in separate silos with no unified view. Analysts spent 60%+ of their time on data wrangling rather than insight generation, compliance deadlines were frequently at risk, and leadership lacked real-time visibility into key risk indicators across the financial crime landscape.",
+    architecture: "/fcrm-bi-platform-architecture.jpg",
+    solution: {
+      sql: `-- FCRM Unified Risk Scorecard: AML + Fraud + SAR Analytics
+-- SQL Server stored procedure for daily risk dashboard refresh
+
+CREATE PROCEDURE [dbo].[sp_FCRM_DailyRiskScorecard]
+    @ReportDate DATE = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET @ReportDate = ISNULL(@ReportDate, CAST(GETDATE() AS DATE));
+
+    -- 1. AML Transaction Monitoring Summary
+    WITH AML_Alerts AS (
+        SELECT
+            a.alert_id,
+            a.customer_id,
+            c.customer_segment,
+            c.branch_code,
+            a.alert_type,
+            a.risk_score,
+            a.alert_status,
+            a.created_date,
+            a.resolved_date,
+            DATEDIFF(DAY, a.created_date, ISNULL(a.resolved_date, GETDATE())) AS aging_days
+        FROM dbo.AML_Alerts a
+        INNER JOIN dbo.Customers c ON a.customer_id = c.customer_id
+        WHERE a.created_date >= DATEADD(MONTH, -3, @ReportDate)
+    ),
+
+    -- 2. Fraud Detection Case Outcomes
+    Fraud_Cases AS (
+        SELECT
+            fc.case_id,
+            fc.fraud_type,
+            fc.detection_method,
+            fc.case_status,
+            fc.loss_amount,
+            fc.recovered_amount,
+            CASE
+                WHEN fc.loss_amount > 0
+                THEN CAST(fc.recovered_amount AS FLOAT) / fc.loss_amount * 100
+                ELSE 0
+            END AS recovery_rate_pct,
+            fc.reported_date
+        FROM dbo.Fraud_Cases fc
+        WHERE fc.reported_date >= DATEADD(MONTH, -3, @ReportDate)
+    ),
+
+    -- 3. SAR Filing Compliance Tracker
+    SAR_Filings AS (
+        SELECT
+            s.sar_id,
+            s.filing_status,
+            s.due_date,
+            s.submitted_date,
+            CASE
+                WHEN s.submitted_date <= s.due_date THEN 'On Time'
+                WHEN s.submitted_date IS NULL AND s.due_date < @ReportDate THEN 'Overdue'
+                ELSE 'Late'
+            END AS compliance_status,
+            s.risk_category
+        FROM dbo.SAR_Filings s
+        WHERE s.due_date >= DATEADD(MONTH, -6, @ReportDate)
+    )
+
+    -- Final Risk Scorecard Output
+    SELECT
+        @ReportDate AS report_date,
+        -- AML Metrics
+        COUNT(DISTINCT aa.alert_id) AS total_aml_alerts,
+        SUM(CASE WHEN aa.alert_status = 'Open' THEN 1 ELSE 0 END) AS open_aml_alerts,
+        AVG(aa.aging_days) AS avg_alert_aging_days,
+        SUM(CASE WHEN aa.risk_score >= 80 THEN 1 ELSE 0 END) AS high_risk_alerts,
+        -- Fraud Metrics
+        COUNT(DISTINCT frc.case_id) AS total_fraud_cases,
+        SUM(frc.loss_amount) AS total_fraud_losses,
+        SUM(frc.recovered_amount) AS total_recovered,
+        AVG(frc.recovery_rate_pct) AS avg_recovery_rate,
+        -- SAR Compliance
+        COUNT(DISTINCT sf.sar_id) AS total_sars,
+        SUM(CASE WHEN sf.compliance_status = 'On Time' THEN 1 ELSE 0 END) AS sars_on_time,
+        SUM(CASE WHEN sf.compliance_status = 'Overdue' THEN 1 ELSE 0 END) AS sars_overdue,
+        CAST(SUM(CASE WHEN sf.compliance_status = 'On Time' THEN 1 ELSE 0 END) AS FLOAT)
+            / NULLIF(COUNT(sf.sar_id), 0) * 100 AS sar_compliance_rate
+    FROM AML_Alerts aa
+    CROSS JOIN Fraud_Cases frc
+    CROSS JOIN SAR_Filings sf;
+END;
+GO`,
+      python: `# FCRM Automated Report Generator & SSIS Package Trigger
+# Automates daily scorecard refresh and distribution
+
+import pyodbc
+import pandas as pd
+from datetime import datetime, timedelta
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
+from email.mime.text import MIMEText
+import openpyxl
+from openpyxl.chart import BarChart, PieChart, Reference
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+import subprocess
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger('FCRM_Reporter')
+
+class FCRMReportAutomation:
+    def __init__(self):
+        self.conn_str = (
+            "Driver={ODBC Driver 18 for SQL Server};"
+            "Server=fcrm-sql-prod.database.windows.net;"
+            "Database=FCRM_Analytics;"
+            "Authentication=ActiveDirectoryMsi;"
+        )
+
+    def execute_ssis_package(self):
+        """Trigger SSIS ETL package to refresh staging tables"""
+        logger.info("Triggering SSIS package: FCRM_Daily_ETL")
+        cmd = [
+            "dtexec",
+            "/ISServer",
+            "\\\\SSISDB\\\\FCRM_Packages\\\\FCRM_Daily_ETL.dtsx",
+            "/Server", "fcrm-sql-prod"
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode == 0:
+            logger.info("SSIS package executed successfully")
+        else:
+            logger.error(f"SSIS execution failed: {result.stderr}")
+            raise RuntimeError("SSIS package failed")
+
+    def generate_risk_scorecard(self, report_date=None):
+        """Generate the FCRM risk scorecard Excel workbook"""
+        report_date = report_date or datetime.now().strftime('%Y-%m-%d')
+        logger.info(f"Generating FCRM scorecard for {report_date}")
+
+        conn = pyodbc.connect(self.conn_str)
+
+        # Execute stored procedure
+        scorecard_df = pd.read_sql(
+            "EXEC sp_FCRM_DailyRiskScorecard @ReportDate = ?",
+            conn, params=[report_date]
+        )
+
+        # AML alerts breakdown
+        aml_df = pd.read_sql("""
+            SELECT alert_type, alert_status, COUNT(*) as cnt,
+                   AVG(risk_score) as avg_risk_score
+            FROM dbo.AML_Alerts
+            WHERE created_date >= DATEADD(MONTH, -3, ?)
+            GROUP BY alert_type, alert_status
+            ORDER BY cnt DESC
+        """, conn, params=[report_date])
+
+        # Fraud trends by type
+        fraud_df = pd.read_sql("""
+            SELECT fraud_type, detection_method,
+                   COUNT(*) as cases,
+                   SUM(loss_amount) as total_loss,
+                   SUM(recovered_amount) as total_recovered
+            FROM dbo.Fraud_Cases
+            WHERE reported_date >= DATEADD(MONTH, -6, ?)
+            GROUP BY fraud_type, detection_method
+        """, conn, params=[report_date])
+
+        conn.close()
+
+        # Build Excel workbook with charts
+        wb = openpyxl.Workbook()
+        self._build_executive_summary(wb, scorecard_df)
+        self._build_aml_sheet(wb, aml_df)
+        self._build_fraud_sheet(wb, fraud_df)
+
+        filename = f"FCRM_Risk_Scorecard_{report_date}.xlsx"
+        wb.save(filename)
+        logger.info(f"Scorecard saved: {filename}")
+        return filename
+
+    def _build_executive_summary(self, wb, df):
+        ws = wb.active
+        ws.title = "Executive Summary"
+        header_fill = PatternFill(start_color="0E7490", fill_type="solid")
+        header_font = Font(name="Calibri", bold=True, color="FFFFFF", size=12)
+
+        headers = ["Metric", "Value", "RAG Status"]
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+
+        row = df.iloc[0]
+        metrics = [
+            ("Total AML Alerts (3M)", row["total_aml_alerts"], "amber"),
+            ("Open AML Alerts", row["open_aml_alerts"], "red"),
+            ("Avg Alert Aging (days)", row["avg_alert_aging_days"], "amber"),
+            ("High Risk Alerts", row["high_risk_alerts"], "red"),
+            ("Total Fraud Cases", row["total_fraud_cases"], "amber"),
+            ("SAR Compliance Rate %", row["sar_compliance_rate"], "green"),
+        ]
+        for i, (metric, value, rag) in enumerate(metrics, 2):
+            ws.cell(row=i, column=1, value=metric)
+            ws.cell(row=i, column=2, value=value)
+            ws.cell(row=i, column=3, value=rag.upper())
+
+    def run_daily_pipeline(self):
+        """Full daily pipeline: ETL -> Report -> Distribute"""
+        logger.info("Starting FCRM daily reporting pipeline")
+        self.execute_ssis_package()
+        filename = self.generate_risk_scorecard()
+        logger.info("FCRM daily pipeline complete")
+        return filename
+
+if __name__ == "__main__":
+    pipeline = FCRMReportAutomation()
+    pipeline.run_daily_pipeline()`,
+      powerbi: `// FCRM Power BI DAX Measures for Risk Dashboard
+
+// 1. AML Alert Volume - Rolling 90 Days
+AML Alert Volume 90D =
+CALCULATE(
+    COUNTROWS('AML_Alerts'),
+    DATESINPERIOD(
+        'Calendar'[Date],
+        MAX('Calendar'[Date]),
+        -90,
+        DAY
+    )
+)
+
+// 2. Fraud Recovery Rate KPI
+Fraud Recovery Rate =
+VAR TotalLoss = SUM('Fraud_Cases'[loss_amount])
+VAR TotalRecovered = SUM('Fraud_Cases'[recovered_amount])
+RETURN
+    DIVIDE(TotalRecovered, TotalLoss, 0) * 100
+
+// 3. SAR Compliance Rate with Conditional Formatting
+SAR Compliance Rate =
+VAR OnTime =
+    CALCULATE(
+        COUNTROWS('SAR_Filings'),
+        'SAR_Filings'[compliance_status] = "On Time"
+    )
+VAR Total = COUNTROWS('SAR_Filings')
+RETURN
+    DIVIDE(OnTime, Total, 0) * 100
+
+// 4. High Risk Customer Count
+High Risk Customers =
+CALCULATE(
+    DISTINCTCOUNT('AML_Alerts'[customer_id]),
+    'AML_Alerts'[risk_score] >= 80,
+    'AML_Alerts'[alert_status] = "Open"
+)
+
+// 5. Alert Aging Buckets for Heatmap
+Alert Aging Bucket =
+SWITCH(
+    TRUE(),
+    'AML_Alerts'[aging_days] <= 7, "0-7 Days",
+    'AML_Alerts'[aging_days] <= 30, "8-30 Days",
+    'AML_Alerts'[aging_days] <= 60, "31-60 Days",
+    "60+ Days"
+)`,
+    },
+  },
+  "fcrm-data-automation": {
+    title: "FCRM Data Extraction & Process Automation Engine",
+    problemStatement:
+      "Financial Crime Risk Management analysts were spending over 15 hours per week on manual data extractions from Oracle, SQL Server, and SAS datasets to produce compliance reports, ad-hoc investigations, and regulatory submissions. Each extraction involved multiple disconnected queries, manual Excel consolidation, and error-prone copy-paste workflows. The lack of automation led to inconsistent data, missed deadlines, and significant operational risk in a highly regulated environment where accuracy and timeliness are critical for FICA, FIC Act, and SARB compliance.",
+    architecture: "/fcrm-data-automation-architecture.jpg",
+    solution: {
+      sql: `-- Oracle & SQL Server cross-platform extraction for FCRM investigations
+-- Unified view combining Oracle transaction data with SQL Server case management
+
+-- Step 1: SQL Server - Create linked server to Oracle
+EXEC sp_addlinkedserver
+    @server = 'ORACLE_TXN_DB',
+    @srvproduct = 'Oracle',
+    @provider = 'OraOLEDB.Oracle',
+    @datasrc = 'fcrm-oracle-prod.bank.local';
+
+-- Step 2: Investigation Case Extract with Oracle Transaction Join
+CREATE PROCEDURE [dbo].[sp_FCRM_InvestigationExtract]
+    @InvestigationId INT,
+    @DateFrom DATE,
+    @DateTo DATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Pull case details from SQL Server case management
+    SELECT
+        ic.case_id,
+        ic.investigation_type,
+        ic.suspect_customer_id,
+        c.full_name,
+        c.id_number,
+        c.account_number,
+        c.branch_code,
+        ic.assigned_analyst,
+        ic.priority_level,
+        ic.status
+    INTO #CaseDetails
+    FROM dbo.Investigation_Cases ic
+    INNER JOIN dbo.Customers c ON ic.suspect_customer_id = c.customer_id
+    WHERE ic.case_id = @InvestigationId;
+
+    -- Pull transaction history from Oracle via linked server
+    SELECT
+        cd.case_id,
+        cd.full_name,
+        t.transaction_id,
+        t.transaction_date,
+        t.transaction_type,
+        t.amount,
+        t.currency,
+        t.originating_account,
+        t.beneficiary_account,
+        t.beneficiary_name,
+        t.swift_code,
+        t.country_code,
+        -- Flag high-risk jurisdictions
+        CASE
+            WHEN t.country_code IN ('KP','IR','SY','MM','AF')
+            THEN 'HIGH RISK - SANCTIONED'
+            WHEN t.country_code IN ('PA','VG','KY','BZ')
+            THEN 'ELEVATED - TAX HAVEN'
+            ELSE 'STANDARD'
+        END AS jurisdiction_risk
+    FROM #CaseDetails cd
+    INNER JOIN OPENQUERY(ORACLE_TXN_DB,
+        'SELECT transaction_id, transaction_date, transaction_type,
+                amount, currency, originating_account,
+                beneficiary_account, beneficiary_name,
+                swift_code, country_code
+         FROM CORE_BANKING.TRANSACTIONS
+         WHERE transaction_date BETWEEN TO_DATE(''' + CONVERT(VARCHAR, @DateFrom, 23) + ''', ''YYYY-MM-DD'')
+         AND TO_DATE(''' + CONVERT(VARCHAR, @DateTo, 23) + ''', ''YYYY-MM-DD'')') t
+        ON cd.account_number = t.originating_account;
+
+    -- Structuring detection patterns
+    SELECT
+        t.originating_account,
+        CAST(t.transaction_date AS DATE) AS txn_date,
+        COUNT(*) AS daily_txn_count,
+        SUM(t.amount) AS daily_total,
+        -- Structuring detection: multiple transactions just below threshold
+        SUM(CASE WHEN t.amount BETWEEN 20000 AND 24999 THEN 1 ELSE 0 END)
+            AS near_threshold_count,
+        CASE
+            WHEN COUNT(*) >= 5 AND SUM(t.amount) > 100000 THEN 'STRUCTURING SUSPECTED'
+            WHEN SUM(CASE WHEN t.amount BETWEEN 20000 AND 24999 THEN 1 ELSE 0 END) >= 3
+            THEN 'SMURFING PATTERN'
+            ELSE 'NORMAL'
+        END AS pattern_flag
+    FROM #CaseDetails cd
+    INNER JOIN OPENQUERY(ORACLE_TXN_DB,
+        'SELECT * FROM CORE_BANKING.TRANSACTIONS') t
+        ON cd.account_number = t.originating_account
+    GROUP BY t.originating_account, CAST(t.transaction_date AS DATE)
+    HAVING COUNT(*) >= 3 OR SUM(t.amount) > 50000
+    ORDER BY daily_total DESC;
+
+    DROP TABLE #CaseDetails;
+END;
+GO`,
+      python: `# FCRM Process Automation Engine
+# Automates data extraction, SAS dataset conversion, and report distribution
+
+import pyodbc
+import cx_Oracle
+import pandas as pd
+import sas7bdat
+from datetime import datetime, timedelta
+from pathlib import Path
+import schedule
+import logging
+import json
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.utils.dataframe import dataframe_to_rows
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger('FCRM_Automation')
+
+class FCRMDataAutomation:
+    def __init__(self, config_path='fcrm_config.json'):
+        with open(config_path) as f:
+            self.config = json.load(f)
+
+        self.sql_conn = pyodbc.connect(
+            "Driver={ODBC Driver 18 for SQL Server};"
+            "Server=fcrm-sql-prod.bank.local;"
+            "Database=FCRM_CaseManagement;"
+            "Trusted_Connection=yes;"
+        )
+        self.oracle_conn = cx_Oracle.connect(
+            "fcrm_read/****@fcrm-oracle-prod.bank.local:1521/COREBANK"
+        )
+
+    def extract_sas_datasets(self, sas_directory):
+        """Convert SAS7BDAT files to pandas DataFrames"""
+        logger.info(f"Processing SAS datasets from {sas_directory}")
+        sas_path = Path(sas_directory)
+        datasets = {}
+
+        for sas_file in sas_path.glob("*.sas7bdat"):
+            logger.info(f"Reading SAS file: {sas_file.name}")
+            with sas7bdat.SAS7BDAT(str(sas_file)) as reader:
+                df = reader.to_data_frame()
+                datasets[sas_file.stem] = df
+                logger.info(f"  Loaded {len(df)} rows, {len(df.columns)} columns")
+
+        return datasets
+
+    def run_aml_threshold_report(self):
+        """Generate automated AML threshold monitoring report"""
+        logger.info("Running AML threshold monitoring extraction")
+
+        # Extract from Oracle core banking
+        oracle_query = """
+            SELECT
+                t.account_number,
+                t.customer_id,
+                c.full_name,
+                c.id_type,
+                c.id_number,
+                COUNT(*) as txn_count,
+                SUM(t.amount) as total_amount,
+                MAX(t.amount) as max_single_txn,
+                COUNT(DISTINCT t.beneficiary_account) as unique_beneficiaries,
+                COUNT(DISTINCT t.country_code) as unique_countries
+            FROM CORE_BANKING.TRANSACTIONS t
+            JOIN CORE_BANKING.CUSTOMERS c ON t.customer_id = c.customer_id
+            WHERE t.transaction_date >= TRUNC(SYSDATE) - 30
+            GROUP BY t.account_number, t.customer_id,
+                     c.full_name, c.id_type, c.id_number
+            HAVING SUM(t.amount) > 25000
+               OR COUNT(*) > 20
+               OR COUNT(DISTINCT t.country_code) > 3
+            ORDER BY total_amount DESC
+        """
+        oracle_df = pd.read_sql(oracle_query, self.oracle_conn)
+
+        # Cross-reference with SQL Server watchlists
+        watchlist_query = """
+            SELECT customer_id, watchlist_type, match_score,
+                   listed_date, source_list
+            FROM dbo.Watchlist_Matches
+            WHERE is_active = 1
+        """
+        watchlist_df = pd.read_sql(watchlist_query, self.sql_conn)
+
+        # Merge and flag
+        merged = oracle_df.merge(
+            watchlist_df, on='customer_id', how='left'
+        )
+        merged['risk_flag'] = merged.apply(self._calculate_risk_flag, axis=1)
+        merged['report_date'] = datetime.now().strftime('%Y-%m-%d')
+
+        # Generate Excel report
+        filename = self._create_aml_workbook(merged)
+        logger.info(f"AML threshold report saved: {filename}")
+        return filename
+
+    def _calculate_risk_flag(self, row):
+        score = 0
+        if row['total_amount'] > 100000: score += 30
+        if row['txn_count'] > 50: score += 20
+        if row['unique_countries'] > 5: score += 25
+        if pd.notna(row.get('watchlist_type')): score += 40
+        if row.get('match_score', 0) > 0.8: score += 20
+
+        if score >= 70: return 'CRITICAL'
+        elif score >= 40: return 'HIGH'
+        elif score >= 20: return 'MEDIUM'
+        return 'LOW'
+
+    def _create_aml_workbook(self, df):
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "AML Threshold Report"
+
+        # Header styling
+        header_fill = PatternFill(start_color="0E7490", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF", size=11)
+
+        for r in dataframe_to_rows(df, index=False, header=True):
+            ws.append(r)
+
+        for cell in ws[1]:
+            cell.fill = header_fill
+            cell.font = header_font
+
+        filename = f"AML_Threshold_Report_{datetime.now():%Y%m%d}.xlsx"
+        wb.save(filename)
+        return filename
+
+    def schedule_daily_runs(self):
+        """Schedule automated daily extractions"""
+        schedule.every().day.at("06:00").do(self.run_aml_threshold_report)
+        logger.info("FCRM automation scheduler started")
+        while True:
+            schedule.run_pending()
+
+if __name__ == "__main__":
+    engine = FCRMDataAutomation()
+    engine.run_aml_threshold_report()`,
+      qlikview: `// QlikView Load Script for FCRM Dashboard
+// Connects to SQL Server FCRM database and builds associative data model
+
+SET ThousandSep=',';
+SET DecimalSep='.';
+SET MoneyThousandSep=',';
+SET MoneyFormat='R #,##0.00';
+SET TimeFormat='hh:mm:ss';
+SET DateFormat='YYYY-MM-DD';
+
+// ============================
+// AML ALERTS FACT TABLE
+// ============================
+AML_Alerts:
+LOAD
+    alert_id,
+    customer_id,
+    alert_type,
+    risk_score,
+    alert_status,
+    created_date AS alert_created_date,
+    resolved_date AS alert_resolved_date,
+    assigned_analyst,
+    INTERVAL(resolved_date - created_date, 'D') AS resolution_days,
+    IF(risk_score >= 80, 'Critical',
+       IF(risk_score >= 60, 'High',
+          IF(risk_score >= 40, 'Medium', 'Low'))) AS risk_category,
+    Month(created_date) AS alert_month,
+    Year(created_date) AS alert_year;
+SQL SELECT * FROM dbo.AML_Alerts
+    WHERE created_date >= DATEADD(YEAR, -1, GETDATE());
+
+// ============================
+// FRAUD CASES FACT TABLE
+// ============================
+Fraud_Cases:
+LOAD
+    case_id,
+    customer_id,
+    fraud_type,
+    detection_method,
+    case_status,
+    loss_amount,
+    recovered_amount,
+    reported_date,
+    loss_amount - recovered_amount AS net_loss,
+    IF(loss_amount > 0,
+       recovered_amount / loss_amount * 100, 0) AS recovery_rate,
+    Month(reported_date) AS fraud_month,
+    Year(reported_date) AS fraud_year;
+SQL SELECT * FROM dbo.Fraud_Cases
+    WHERE reported_date >= DATEADD(YEAR, -1, GETDATE());
+
+// ============================
+// CUSTOMER DIMENSION
+// ============================
+Customers:
+LOAD
+    customer_id,
+    full_name,
+    customer_segment,
+    branch_code,
+    province,
+    account_type,
+    onboarding_date,
+    kyc_status,
+    pep_flag;
+SQL SELECT * FROM dbo.Customers;
+
+// ============================
+// EXPRESSIONS FOR DASHBOARD
+// ============================
+// Total Open Alerts: =COUNT({<alert_status={'Open'}>} alert_id)
+// Avg Resolution Days: =AVG(resolution_days)
+// Fraud Loss Ratio: =SUM(net_loss) / SUM(loss_amount) * 100
+// SAR Compliance: =COUNT({<compliance_status={'On Time'}>} sar_id) / COUNT(sar_id) * 100`,
+    },
+  },
 }
 
-const downloadCV = async () => {
-  // Dynamically import jsPDF and html2canvas
-  const { default: jsPDF } = await import("jspdf")
-  const html2canvas = (await import("html2canvas")).default
+const downloadCV = () => {
+  const printWindow = window.open("", "_blank")
+  if (!printWindow) return
 
-  // Create an isolated iframe to render CV without interference from page styles
-  const iframe = document.createElement("iframe")
-  iframe.style.position = "absolute"
-  iframe.style.left = "-9999px"
-  iframe.style.width = "210mm"
-  iframe.style.height = "297mm"
-  document.body.appendChild(iframe)
-
-  const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
-  if (!iframeDoc) {
-    document.body.removeChild(iframe)
-    alert("Error creating PDF. Please try again.")
-    return
-  }
-
-  // Write CV content with inline styles using only hex/rgb colors
-  iframeDoc.open()
-  iframeDoc.write(`
+  printWindow.document.write(`
     <!DOCTYPE html>
     <html>
-    <head>
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-          width: 210mm; 
-          padding: 20mm; 
-          background: #ffffff; 
-          font-family: Arial, sans-serif; 
-          font-size: 11pt; 
-          line-height: 1.5; 
-          color: #333333; 
-        }
-        .cv-header { text-align: center; margin-bottom: 20px; border-bottom: 3px solid #1a365d; padding-bottom: 15px; }
-        .cv-header h1 { color: #1a365d; font-size: 28pt; margin-bottom: 8px; font-weight: bold; }
-        .cv-subtitle { color: #4a5568; font-size: 11pt; margin-bottom: 10px; }
-        .cv-contact { font-size: 10pt; color: #4a5568; }
-        .cv-section { margin-top: 20px; }
-        .cv-section h2 { color: #1a365d; font-size: 14pt; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px; margin-bottom: 12px; font-weight: bold; }
-        .cv-item { margin-bottom: 15px; }
-        .cv-item-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
-        .cv-title { font-weight: bold; color: #1a365d; font-size: 12pt; }
-        .cv-company { color: #4a5568; font-size: 10pt; }
-        .cv-duration { color: #718096; font-size: 9pt; }
-        .cv-list { margin-left: 20px; margin-top: 6px; list-style-type: disc; }
-        .cv-list li { margin-bottom: 4px; font-size: 10pt; }
-        .cv-skills-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .cv-skill-box { background: #f7fafc; padding: 10px; border-radius: 4px; border: 1px solid #e2e8f0; }
-        .cv-skill-box h4 { color: #1a365d; font-size: 11pt; margin-bottom: 6px; font-weight: bold; }
-        .cv-badge { display: inline-block; background: #e2e8f0; padding: 2px 6px; border-radius: 3px; font-size: 9pt; margin: 2px; color: #1a365d; }
-        p { margin: 6px 0; }
-      </style>
-    </head>
-    <body>
-      <div class="cv-header">
-        <h1>STANTON EDWARDS</h1>
-        <div class="cv-subtitle">BI Manager | Big Data Enthusiast | Analytics Expert | Senior Data Engineer</div>
-        <div class="cv-contact">
-          stanton.edwards@outlook.com | 079 881 0997 | Johannesburg, South Africa
-        </div>
-      </div>
-
-      <div class="cv-section">
-        <h2>PROFESSIONAL SUMMARY</h2>
-        <p>Transforming raw data into actionable business insights through scalable infrastructure, advanced analytics, and cutting-edge big data technologies. Over 10 years of experience leading data science teams, developing ML models, and implementing enterprise analytics solutions across financial services and energy sectors.</p>
-      </div>
-
-      <div class="cv-section">
-        <h2>PROFESSIONAL EXPERIENCE</h2>
-        
-        <div class="cv-item">
-          <div class="cv-item-header">
-            <div>
-              <div class="cv-title">Data Analytics & AI Lead</div>
-              <div class="cv-company">TotalEnergies • Finance & IS Management • Johannesburg</div>
-            </div>
-            <div class="cv-duration">2024 - Present</div>
+      <head>
+        <title>Stanton Edwards - CV</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { 
+            font-family: 'Arial', sans-serif; 
+            line-height: 1.6; 
+            color: #1a202c;
+            padding: 40px;
+            max-width: 210mm;
+            margin: 0 auto;
+          }
+          h1 { 
+            font-size: 32px; 
+            color: #0e7490; 
+            margin-bottom: 8px;
+            border-bottom: 3px solid #84cc16;
+            padding-bottom: 10px;
+          }
+          h2 { 
+            font-size: 20px; 
+            color: #0e7490; 
+            margin-top: 24px;
+            margin-bottom: 12px;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 6px;
+          }
+          h3 { 
+            font-size: 16px; 
+            color: #1e40af; 
+            margin-top: 16px;
+            margin-bottom: 8px;
+          }
+          .header { 
+            text-align: center; 
+            margin-bottom: 30px;
+          }
+          .contact-info { 
+            display: flex; 
+            justify-content: center; 
+            gap: 20px; 
+            flex-wrap: wrap;
+            margin-top: 12px;
+            font-size: 14px;
+          }
+          .section { 
+            margin-bottom: 24px;
+            page-break-inside: avoid;
+          }
+          .job { 
+            margin-bottom: 20px;
+            page-break-inside: avoid;
+          }
+          .job-header { 
+            display: flex; 
+            justify-content: space-between; 
+            margin-bottom: 8px;
+          }
+          .job-title { 
+            font-weight: bold; 
+            color: #1e40af;
+            font-size: 15px;
+          }
+          .company { 
+            color: #0e7490; 
+            font-weight: 600;
+          }
+          .duration { 
+            color: #64748b; 
+            font-style: italic;
+            font-size: 14px;
+          }
+          ul { 
+            margin-left: 20px; 
+            margin-top: 8px;
+          }
+          li { 
+            margin-bottom: 6px;
+            font-size: 14px;
+          }
+          .skills-grid { 
+            display: grid; 
+            grid-template-columns: repeat(2, 1fr); 
+            gap: 16px;
+            margin-top: 12px;
+          }
+          .skill-category { 
+            margin-bottom: 12px;
+          }
+          .skill-category strong { 
+            color: #1e40af;
+            display: block;
+            margin-bottom: 6px;
+          }
+          .badges { 
+            display: flex; 
+            flex-wrap: wrap; 
+            gap: 8px;
+            margin-top: 6px;
+          }
+          .badge { 
+            background: #e0f2fe; 
+            color: #0369a1; 
+            padding: 4px 12px; 
+            border-radius: 12px; 
+            font-size: 12px;
+            font-weight: 500;
+          }
+          @media print {
+            body { padding: 20px; }
+            .section { page-break-inside: avoid; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>STANTON EDWARDS</h1>
+          <p style="font-size: 16px; color: #0e7490; font-weight: 600;">BI Manager | Big Data Enthusiast | Analytics Expert | Senior Data Engineer</p>
+          <div class="contact-info">
+            <span>📧 stanton.edwards@outlook.com</span>
+            <span>📱 079 881 0997</span>
+            <span>📍 Johannesburg, South Africa</span>
           </div>
-          <ul class="cv-list">
-            <li>Lead team of 12 data scientists, analysts, and ML engineers across advanced analytics and AI/ML functions</li>
-            <li>Delivered €120M+ in measurable business value across retail, commercial, and trading operations</li>
-            <li>Built customer insights platform using ML/NLP, increasing retention by 28% and conversion by 35%</li>
-            <li>Implemented real-time risk analytics processing 5M+ transactions daily with 99.2% accuracy</li>
-            <li>Championed data-driven culture through Power BI dashboards enabling 500+ business users</li>
+        </div>
+
+        <div class="section">
+          <h2>PROFESSIONAL SUMMARY</h2>
+          <p>Results-driven Data Analytics and AI leader with 10+ years of experience delivering enterprise-scale analytics solutions and AI/ML platforms in the energy and financial services sectors. Proven track record of building high-performing teams, implementing real-time analytics systems, and driving measurable business value through data-driven insights. Expert in Python, SQL, Spark, Power BI, and cloud platforms (Azure, AWS). Strong business acumen with ability to translate complex technical concepts into strategic recommendations for C-level executives.</p>
+        </div>
+
+        <div class="section">
+          <h2>PROFESSIONAL EXPERIENCE</h2>
+          
+          <div class="job">
+            <div class="job-header">
+              <div>
+                <div class="job-title">Data Analytics & AI Lead</div>
+                <div class="company">TotalEnergies • Finance & IS Management • Rosebank Johannesburg</div>
+              </div>
+              <div class="duration">Current Role</div>
+            </div>
+            <ul>
+              <li>Lead a team of 12+ data scientists, analysts, and ML engineers across advanced analytics, AI/ML, and business intelligence functions</li>
+              <li>Developed and executed enterprise analytics strategy aligned with digital transformation goals, delivering R150M+ in measurable business value</li>
+              <li>Built customer insights and personalization platform using ML/NLP, increasing customer retention by 28% and cross-sell conversion by 35%</li>
+              <li>Implemented real-time risk analytics and automated decision-making systems processing 5M+ transactions daily with 99.2% accuracy</li>
+              <li>Established AI ethics framework and governance policies ensuring fairness, transparency, and POPIA compliance</li>
+              <li>Championed data-driven culture through executive dashboards (Power BI) and self-service analytics, enabling 500+ business users</li>
+              <li>Led predictive analytics initiatives for insurance underwriting and claims optimization, reducing loss ratios by 18%</li>
+            </ul>
+          </div>
+
+          <div class="job">
+            <div class="job-header">
+              <div>
+                <div class="job-title">BI Solutions Architect - Data & Analytics</div>
+                <div class="company">TotalEnergies • Finance & IS • Rosebank Johannesburg</div>
+              </div>
+              <div class="duration">2022 - 2024</div>
+            </div>
+            <ul>
+              <li>Designed and implemented enterprise BI architecture supporting 1000+ users across multiple business units</li>
+              <li>Led migration from legacy reporting systems to modern cloud-based analytics platform (Azure Synapse + Power BI)</li>
+              <li>Developed data governance framework and metadata management strategy ensuring data quality and compliance</li>
+              <li>Built real-time operational dashboards reducing decision-making time from days to minutes</li>
+              <li>Established center of excellence for analytics, providing training and best practices to 200+ users</li>
+            </ul>
+          </div>
+
+          <div class="job">
+            <div class="job-header">
+              <div>
+                <div class="job-title">Senior Data Engineer & Analytics Lead</div>
+                <div class="company">Retail and B2B • TotalEnergies</div>
+              </div>
+              <div class="duration">2019 - 2022 • 3 Years</div>
+            </div>
+            <ul>
+              <li>Led analytics team of 8 engineers delivering advanced analytics solutions and ML model deployment</li>
+              <li>Conducted comprehensive business requirements analysis for 15+ analytics projects, translating stakeholder needs into technical specifications</li>
+              <li>Facilitated cross-functional workshops with business stakeholders to define KPIs, success metrics, and reporting requirements</li>
+              <li>Developed detailed functional specifications, user stories, and acceptance criteria for analytics platform enhancements</li>
+              <li>Built customer segmentation and propensity models using Python/R, driving 45% improvement in marketing campaign ROI and 32% increase in customer lifetime value</li>
+              <li>Performed cost-benefit analysis for analytics investments, demonstrating R12M annual savings through process optimization</li>
+              <li>Created data-driven business cases that secured R25M in funding for customer analytics platform expansion</li>
+              <li>Optimized Spark jobs reducing processing time by 70% and infrastructure costs by 45%</li>
+              <li>Implemented real-time streaming analytics processing 50M+ events daily with sub-second latency</li>
+              <li>Established data quality frameworks and automated testing, reducing data incidents by 85%</li>
+            </ul>
+          </div>
+
+          <div class="job">
+            <div class="job-header">
+              <div>
+                <div class="job-title">Data Engineer & Business Analyst</div>
+                <div class="company">DataFlow Analytics</div>
+              </div>
+              <div class="duration">2016 - 2019 • 3 Years</div>
+            </div>
+            <ul>
+              <li>Elicited and documented business requirements through stakeholder interviews, surveys, and process mapping sessions</li>
+              <li>Created comprehensive process flow diagrams, data flow diagrams, and business process models using BPMN notation</li>
+              <li>Conducted gap analysis between current state and desired future state, identifying improvement opportunities worth R8M annually</li>
+              <li>Developed business requirement documents (BRDs) and functional requirement documents (FRDs) for 20+ data projects</li>
+              <li>Facilitated UAT sessions with business users, managing feedback incorporation and sign-off processes</li>
+              <li>Built and maintained ETL pipelines processing 100GB+ daily using Apache Airflow and Python</li>
+              <li>Developed statistical models in Python/R for customer behavior analysis and churn prediction</li>
+              <li>Created executive dashboards in Tableau combining complex data signals into actionable insights</li>
+              <li>Collaborated with data scientist to productionize ML models serving 1M+ predictions daily</li>
+              <li>Performed root cause analysis on data quality issues, implementing fixes that improved accuracy by 95%</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>TECHNICAL SKILLS</h2>
+          <div class="skills-grid">
+            <div class="skill-category">
+              <strong>Programming & Scripting:</strong>
+              <div class="badges">
+                <span class="badge">Python</span>
+                <span class="badge">SQL</span>
+                <span class="badge">R</span>
+                <span class="badge">Scala</span>
+                <span class="badge">VBA</span>
+              </div>
+            </div>
+            <div class="skill-category">
+              <strong>Big Data & Processing:</strong>
+              <div class="badges">
+                <span class="badge">Apache Spark</span>
+                <span class="badge">Hadoop</span>
+                <span class="badge">Kafka</span>
+                <span class="badge">Airflow</span>
+                <span class="badge">Alteryx</span>
+              </div>
+            </div>
+            <div class="skill-category">
+              <strong>Cloud Platforms:</strong>
+              <div class="badges">
+                <span class="badge">Azure</span>
+                <span class="badge">AWS</span>
+                <span class="badge">GCP</span>
+                <span class="badge">Databricks</span>
+              </div>
+            </div>
+            <div class="skill-category">
+              <strong>Databases:</strong>
+              <div class="badges">
+                <span class="badge">PostgreSQL</span>
+                <span class="badge">MySQL</span>
+                <span class="badge">MongoDB</span>
+                <span class="badge">Cassandra</span>
+                <span class="badge">Snowflake</span>
+              </div>
+            </div>
+            <div class="skill-category">
+              <strong>Analytics & BI:</strong>
+              <div class="badges">
+                <span class="badge">Power BI</span>
+                <span class="badge">Tableau</span>
+                <span class="badge">Looker</span>
+                <span class="badge">Excel</span>
+                <span class="badge">MS Access</span>
+              </div>
+            </div>
+            <div class="skill-category">
+              <strong>ML & AI:</strong>
+              <div class="badges">
+                <span class="badge">TensorFlow</span>
+                <span class="badge">PyTorch</span>
+                <span class="badge">Scikit-learn</span>
+                <span class="badge">NLP</span>
+                <span class="badge">Computer Vision</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>EDUCATION</h2>
+          <div class="job">
+            <div class="job-header">
+              <div>
+                <div class="job-title">Master of Science in Data Science</div>
+                <div class="company">University of Johannesburg</div>
+              </div>
+              <div class="duration">2018</div>
+            </div>
+          </div>
+          <div class="job">
+            <div class="job-header">
+              <div>
+                <div class="job-title">Bachelor of Science in Computer Science</div>
+                <div class="company">University of the Witwatersrand</div>
+              </div>
+              <div class="duration">2014</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>CERTIFICATIONS</h2>
+          <ul>
+            <li>AWS Certified Solutions Architect - Professional</li>
+            <li>Microsoft Azure Data Engineer Associate</li>
+            <li>Google Cloud Professional Data Engineer</li>
+            <li>Databricks Certified Data Engineer Professional</li>
+            <li>TOGAF 9 Certified</li>
           </ul>
         </div>
 
-        <div class="cv-item">
-          <div class="cv-item-header">
-            <div>
-              <div class="cv-title">BI Solutions Architect - Data & Analytics</div>
-              <div class="cv-company">TotalEnergies • Retail and B2B • Johannesburg</div>
-            </div>
-            <div class="cv-duration">2022 - 2024</div>
+        <div class="section">
+          <h2>KEY PROJECTS</h2>
+          <div class="job">
+            <h3>Insurance Analytics & Insights Platform</h3>
+            <p><strong>Technologies:</strong> SQL, Python, Power BI, Azure Synapse</p>
+            <p>Built comprehensive insurance analytics platform processing 500K+ policies and 2M+ claims annually. Implemented predictive models for claims forecasting and fraud detection, delivering R45M in cost savings.</p>
           </div>
-          <ul class="cv-list">
-            <li>Designed scalable, secure data solutions aligned with digital transformation initiatives</li>
-            <li>Architected cloud-native solutions across Azure, AWS, and GCP (data lakes, warehouses, lakehouses)</li>
-            <li>Developed data models ensuring consistency, quality, and lineage across enterprise systems</li>
-            <li>Embedded data governance and ensured POPIA/GDPR compliance with robust security controls</li>
-          </ul>
-        </div>
-
-        <div class="cv-item">
-          <div class="cv-item-header">
-            <div>
-              <div class="cv-title">Senior Data Engineer & Analytics Lead</div>
-              <div class="cv-company">TotalEnergies • Retail and B2B</div>
-            </div>
-            <div class="cv-duration">2019 - 2022</div>
+          <div class="job">
+            <h3>Customer Analytics Data Warehouse</h3>
+            <p><strong>Technologies:</strong> SQL, Python, Redshift, dbt</p>
+            <p>Designed and implemented enterprise customer 360 data warehouse integrating 12 data sources. Enabled marketing team to achieve 45% improvement in campaign ROI through advanced segmentation.</p>
           </div>
-          <ul class="cv-list">
-            <li>Led team of 8 engineers delivering advanced analytics solutions and ML model deployment</li>
-            <li>Built customer segmentation models driving 45% improvement in marketing ROI and 32% increase in lifetime value</li>
-            <li>Reduced B2B customer churn by 28% through predictive analytics and proactive retention strategies</li>
-            <li>Optimized Spark jobs reducing processing time by 70% and infrastructure costs by 45%</li>
-            <li>Implemented real-time streaming analytics processing 50M+ events daily with sub-second latency</li>
-          </ul>
-        </div>
-
-        <div class="cv-item">
-          <div class="cv-item-header">
-            <div>
-              <div class="cv-title">Data Engineer & Business Analyst</div>
-              <div class="cv-company">DataFlow Analytics</div>
-            </div>
-            <div class="cv-duration">2016 - 2019</div>
-          </div>
-          <ul class="cv-list">
-            <li>Led requirements gathering with C-level executives, translating business needs into technical solutions</li>
-            <li>Conducted comprehensive process analysis and cost-benefit assessments improving operational efficiency by 35%</li>
-            <li>Built ETL pipelines processing 100GB+ daily using Apache Airflow and Python</li>
-            <li>Developed statistical models in Python/R for customer behavior analysis and churn prediction</li>
-            <li>Created executive dashboards in Tableau combining complex data signals into actionable insights</li>
-            <li>Facilitated stakeholder workshops defining KPIs and metrics driving business strategy</li>
-          </ul>
-        </div>
-      </div>
-
-      <div class="cv-section">
-        <h2>TECHNICAL SKILLS</h2>
-        <div class="cv-skills-grid">
-          <div class="cv-skill-box">
-            <h4>AI & Machine Learning</h4>
-            <div>Machine Learning, Deep Learning, NLP, Predictive Analytics, TensorFlow, PyTorch, Scikit-learn</div>
-          </div>
-          <div class="cv-skill-box">
-            <h4>Analytics & Visualization</h4>
-            <div>Power BI, Tableau, Advanced Excel, Looker, Statistical Analysis (SAS/R), Data Storytelling</div>
-          </div>
-          <div class="cv-skill-box">
-            <h4>Big Data Technologies</h4>
-            <div>Apache Spark, Hadoop, Kafka, Real-time Streaming, Databricks, EMR, Data Lakehouse Architecture</div>
-          </div>
-          <div class="cv-skill-box">
-            <h4>Cloud Computing</h4>
-            <div>AWS (EC2, EMR, Redshift, SageMaker), Azure (ML, Data Factory, Synapse), GCP (BigQuery, AI Platform)</div>
-          </div>
-          <div class="cv-skill-box">
-            <h4>Programming Languages</h4>
-            <div>Python (Pandas, NumPy, Scikit-learn), R (Statistical Modeling), SQL, SAS, Scala, Java</div>
-          </div>
-          <div class="cv-skill-box">
-            <h4>Leadership & Strategy</h4>
-            <div>Team Leadership, Mentoring, Analytics Strategy, Stakeholder Management, Agile, Scrum</div>
+          <div class="job">
+            <h3>Real-time Fraud Detection Pipeline</h3>
+            <p><strong>Technologies:</strong> Python, Spark Streaming, Kafka, AWS</p>
+            <p>Built real-time fraud detection system processing 5M+ transactions daily with sub-second latency. Achieved 95% fraud detection rate while reducing false positives by 60%.</p>
           </div>
         </div>
-      </div>
-
-      <div class="cv-section">
-        <h2>KEY PROJECTS</h2>
-        <div class="cv-item">
-          <div class="cv-title">Credit Lifecycle BI & Reporting Platform</div>
-          <div><span class="cv-badge">SQL Server</span><span class="cv-badge">Python</span><span class="cv-badge">MS Access</span><span class="cv-badge">PowerPoint VBA</span></div>
-          <p>Automated credit lifecycle reporting reducing generation time from 7 days to 1 day for executive presentations.</p>
-        </div>
-        <div class="cv-item">
-          <div class="cv-title">Enterprise HR Data Platform</div>
-          <div><span class="cv-badge">Azure SQL</span><span class="cv-badge">Alteryx</span><span class="cv-badge">Python</span><span class="cv-badge">Power BI</span></div>
-          <p>Implemented medallion architecture integrating multiple HRIS systems enabling real-time workforce analytics.</p>
-        </div>
-        <div class="cv-item">
-          <div class="cv-title">Insurance Analytics Platform</div>
-          <div><span class="cv-badge">SQL</span><span class="cv-badge">Python</span><span class="cv-badge">Power BI</span><span class="cv-badge">ML</span></div>
-          <p>Improved underwriting efficiency by 40% and reduced loss ratios by 18% through predictive analytics.</p>
-        </div>
-        <div class="cv-item">
-          <div class="cv-title">Real-time Fraud Detection Pipeline</div>
-          <div><span class="cv-badge">Kafka</span><span class="cv-badge">Spark</span><span class="cv-badge">Python</span><span class="cv-badge">AWS</span></div>
-          <p>Processed 5M+ transactions daily with 99.2% accuracy reducing false positives by 60%.</p>
-        </div>
-      </div>
-
-      <div class="cv-section">
-        <h2>EDUCATION</h2>
-        <div class="cv-item">
-          <div class="cv-title">Bachelor of Science in Computer Science & Statistics</div>
-          <div class="cv-company">University of Johannesburg (2013 - 2016)</div>
-          <p>Specialization in Data Science, Machine Learning, and Statistical Analysis</p>
-        </div>
-      </div>
-
-      <div class="cv-section">
-        <h2>CERTIFICATIONS</h2>
-        <ul class="cv-list">
-          <li>AWS Certified Solutions Architect - Professional</li>
-          <li>Microsoft Certified: Azure Data Engineer Associate</li>
-          <li>Google Cloud Professional Data Engineer</li>
-          <li>TOGAF 9 Certified</li>
-          <li>Certified Analytics Professional (CAP)</li>
-        </ul>
-      </div>
-    </body>
+      </body>
     </html>
   `)
-  iframeDoc.close()
 
-  // Wait for iframe to fully load
-  await new Promise((resolve) => setTimeout(resolve, 500))
+  printWindow.document.close()
+  printWindow.focus()
 
-  try {
-    // Convert iframe content to canvas with explicit white background
-    const canvas = await html2canvas(iframeDoc.body, {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      backgroundColor: "#ffffff",
-      windowWidth: 794, // A4 width at 96dpi
-      windowHeight: 1123, // A4 height at 96dpi
-    })
-
-    // Create PDF
-    const pdf = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4",
-    })
-
-    const imgWidth = 210 // A4 width in mm
-    const imgHeight = (canvas.height * imgWidth) / canvas.width
-    const pageHeight = 297 // A4 height in mm
-    let heightLeft = imgHeight
-    let position = 0
-
-    // Add first page
-    pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, position, imgWidth, imgHeight)
-    heightLeft -= pageHeight
-
-    // Add additional pages if needed
-    while (heightLeft >= 0) {
-      position = heightLeft - imgHeight
-      pdf.addPage()
-      pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, position, imgWidth, imgHeight)
-      heightLeft -= pageHeight
-    }
-
-    // Download PDF
-    pdf.save("Stanton_Edwards_CV.pdf")
-  } catch (error) {
-    console.error("Error generating PDF:", error)
-    alert(`There was an error generating the PDF: ${error}. Please try again.`)
-  } finally {
-    // Remove iframe
-    document.body.removeChild(iframe)
-  }
+  setTimeout(() => {
+    printWindow.print()
+  }, 250)
 }
 
-export default function Portfolio() {
+const Portfolio = () => {
   const [selectedProject, setSelectedProject] = useState<string | null>(null)
   const [isResumeOpen, setIsResumeOpen] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false) // Renamed state variable
@@ -3480,10 +4144,6 @@ export default function Portfolio() {
   //       margin-bottom: 8px;
   //       font-size: 14px;
   //     }
-  //     .skill-list {
-  //       font-size: 12px;
-  //       line-height: 1.8;
-  //     }
   //     .badge {
   //       display: inline-block;
   //       background: #e2e8f0;
@@ -3594,7 +4254,7 @@ export default function Portfolio() {
   //       <li>Developed statistical models in Python/R for customer behavior analysis and churn prediction, providing actionable insights that informed strategic business decisions</li>
   //       <li>Created executive dashboards in Tableau combining complex data signals into actionable insights, facilitating data-driven decision-making across multiple business units</li>
   //       <li>Performed cost-benefit analysis and ROI modeling for proposed initiatives, ensuring alignment with business objectives and optimal resource allocation</li>
-  //       <li>Collaborated with data scientist to productionize ML models serving 1M+ predictions daily while maintaining comprehensive documentation and user acceptance testing</li>
+  //       <li>Collaborated with data scientist to productionize ML models serving 1M+ predictions daily</li>
   //     </ul>
   //   </div>
 
@@ -3671,7 +4331,7 @@ export default function Portfolio() {
   //   </div>
 
   //   <div class="project-item">
-  //     <h3>Insurance Analytics & Insights Platform</h3>
+  //     <h3>Insurance Analytics Platform</h3>
   //     <div><span class="badge">SQL</span><span class="badge">Python</span><span class="badge">Power BI</span><span class="badge">ML</span></div>
   //     <p>Improved underwriting efficiency by 40% and reduced loss ratios by 18% through predictive analytics.</p>
   //   </div>
@@ -3995,7 +4655,7 @@ export default function Portfolio() {
                   </div>
                   <div>
                     <div className="flex justify-between mb-2">
-                      <span>GCP BigQuery & AI Platform</span>
+                      <span>GCP GCP BigQuery & AI Platform</span>
                       <span className="text-sm text-muted-foreground">85%</span>
                     </div>
                     <Progress value={85} className="h-2" />
@@ -4924,131 +5584,6 @@ export default function Portfolio() {
                   <div>
                     <CardTitle className="text-xl mb-2">Real-time Fraud Detection Pipeline</CardTitle>
                     <CardDescription className="text-base">
-                      Streaming data pipeline processing millions of transactions for real-time fraud detection
-                    </CardDescription>
-                  </div>
-                  <Zap className="h-8 w-8 text-accent flex-shrink-0" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Built a real-time fraud detection system using Kafka, Spark Streaming, and ML models to process 5M+
-                    transactions daily with sub-second latency and 99.2% accuracy.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary">Apache Kafka</Badge>
-                    <Badge variant="secondary">Spark Streaming</Badge>
-                    <Badge variant="secondary">Python</Badge>
-                    <Badge variant="secondary">Redis</Badge>
-                    <Badge variant="secondary">ML Models</Badge>
-                  </div>
-                  <div className="pt-2">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <ExternalLink className="mr-2 h-3 w-3" />
-                          View Details
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                          <DialogTitle className="text-2xl font-serif">
-                            {projectDetails["fraud-detection"].title}
-                          </DialogTitle>
-                        </DialogHeader>
-                        <Tabs defaultValue="problem" className="w-full">
-                          <TabsList className="grid w-full grid-cols-4">
-                            <TabsTrigger value="problem">Problem</TabsTrigger>
-                            <TabsTrigger value="architecture">Architecture</TabsTrigger>
-                            <TabsTrigger value="solution">Solution</TabsTrigger>
-                            <TabsTrigger value="code">Code</TabsTrigger>
-                          </TabsList>
-                          <TabsContent value="problem" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>Problem Statement</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <p className="text-muted-foreground leading-relaxed">
-                                  {projectDetails["fraud-detection"].problemStatement}
-                                </p>
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="architecture" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>System Architecture</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <img
-                                  src={projectDetails["fraud-detection"].architecture || "/placeholder.svg"}
-                                  alt="Fraud Detection Architecture"
-                                  className="w-full rounded-lg border"
-                                />
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="solution" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle>Technical Solution</CardTitle>
-                              </CardHeader>
-                              <CardContent className="space-y-4">
-                                <div className="grid md:grid-cols-2 gap-4">
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Key Components:</h4>
-                                    <ul className="text-sm text-muted-foreground space-y-1">
-                                      <li>• Kafka for message streaming</li>
-                                      <li>• Spark Streaming for real-time processing</li>
-                                      <li>• Redis for feature cache</li>
-                                      <li>• ML models for anomaly detection</li>
-                                      <li>• Alert management system</li>
-                                    </ul>
-                                  </div>
-                                  <div>
-                                    <h4 className="font-semibold mb-2">Results Achieved:</h4>
-                                    <ul className="text-sm text-muted-foreground space-y-1">
-                                      <li>• 5M+ transactions processed daily</li>
-                                      <li>• Sub-second detection latency</li>
-                                      <li>• 99.2% detection accuracy</li>
-                                      <li>• Reduced false positives by 60%</li>
-                                    </ul>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                          <TabsContent value="code" className="space-y-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                  <Code className="h-5 w-5" />
-                                  Python - Spark Streaming Fraud Detection
-                                </CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                                  <code>{projectDetails["fraud-detection"].solution}</code>
-                                </pre>
-                              </CardContent>
-                            </Card>
-                          </TabsContent>
-                        </Tabs>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-xl mb-2">IoT Sensor Data Processing</CardTitle>
-                    <CardDescription className="text-base">
                       Scalable platform for ingesting and analyzing IoT sensor data from manufacturing equipment
                     </CardDescription>
                   </div>
@@ -5291,6 +5826,232 @@ export default function Portfolio() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* FCRM BI Platform */}
+            <Card className="group hover:shadow-lg transition-all duration-300 border-border/50 hover:border-primary/30">
+              <CardHeader>
+                <div className="flex items-center gap-2 mb-2">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                  <Badge variant="secondary">Financial Crime</Badge>
+                </div>
+                <CardTitle className="text-xl mb-2">Financial Crime Risk Management BI Platform</CardTitle>
+                <CardDescription>
+                  Unified AML, fraud detection, and SAR compliance reporting platform using SQL Server, SSIS, Power BI, and QlikView for PBB SA FCRM teams.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {["SQL Server", "SSIS", "SSRS", "Power BI", "QlikView", "Python", "Oracle", "Excel"].map((tech) => (
+                    <Badge key={tech} variant="outline" className="text-xs">{tech}</Badge>
+                  ))}
+                </div>
+                <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+                  <span className="flex items-center gap-1"><TrendingUp className="h-4 w-4" />85% faster reporting</span>
+                  <span className="flex items-center gap-1"><Users className="h-4 w-4" />FCRM Team</span>
+                </div>
+                <div className="flex gap-2">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm"><ExternalLink className="h-4 w-4 mr-1" />View Details</Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle className="text-2xl font-serif">{projectDetails["fcrm-reporting"].title}</DialogTitle>
+                        <DialogDescription>Financial Crime Risk Management BI Platform</DialogDescription>
+                      </DialogHeader>
+                      <Tabs defaultValue="problem" className="mt-4">
+                        <TabsList className="grid w-full grid-cols-4">
+                          <TabsTrigger value="problem">Problem</TabsTrigger>
+                          <TabsTrigger value="architecture">Architecture</TabsTrigger>
+                          <TabsTrigger value="solution">Solution</TabsTrigger>
+                          <TabsTrigger value="code">Code</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="problem" className="mt-4">
+                          <Card>
+                            <CardHeader><CardTitle>Problem Statement</CardTitle></CardHeader>
+                            <CardContent><p className="text-muted-foreground leading-relaxed">{projectDetails["fcrm-reporting"].problemStatement}</p></CardContent>
+                          </Card>
+                        </TabsContent>
+                        <TabsContent value="architecture" className="mt-4">
+                          <Card>
+                            <CardHeader><CardTitle>System Architecture</CardTitle></CardHeader>
+                            <CardContent>
+                              <img src={projectDetails["fcrm-reporting"].architecture || "/placeholder.svg"} alt="FCRM BI Architecture" className="w-full rounded-lg" />
+                            </CardContent>
+                          </Card>
+                        </TabsContent>
+                        <TabsContent value="solution" className="mt-4">
+                          <Card>
+                            <CardHeader><CardTitle>Technical Solution</CardTitle></CardHeader>
+                            <CardContent className="space-y-4">
+                              <div className="grid md:grid-cols-2 gap-4">
+                                <div>
+                                  <h4 className="font-semibold mb-2">Key Components:</h4>
+                                  <ul className="text-sm text-muted-foreground space-y-1">
+                                    <li>- SQL Server stored procedures for risk scorecards</li>
+                                    <li>- SSIS packages for daily ETL orchestration</li>
+                                    <li>- SSRS for automated regulatory report distribution</li>
+                                    <li>- Power BI dashboards for real-time risk monitoring</li>
+                                    <li>- QlikView for associative AML/fraud exploration</li>
+                                    <li>- Python for automation and SAS data integration</li>
+                                  </ul>
+                                </div>
+                                <div>
+                                  <h4 className="font-semibold mb-2">Results Achieved:</h4>
+                                  <ul className="text-sm text-muted-foreground space-y-1">
+                                    <li>- Reduced reporting cycle from 5 days to 4 hours</li>
+                                    <li>- 100% SAR filing compliance rate achieved</li>
+                                    <li>- Unified view across AML, fraud, and SAR data</li>
+                                    <li>- Automated daily risk scorecard distribution</li>
+                                    <li>- 60% reduction in analyst data wrangling time</li>
+                                  </ul>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </TabsContent>
+                        <TabsContent value="code" className="space-y-4">
+                          <Card>
+                            <CardHeader><CardTitle className="flex items-center gap-2"><Database className="h-5 w-5" />SQL Server - FCRM Risk Scorecard</CardTitle></CardHeader>
+                            <CardContent>
+                              <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm"><code>{typeof projectDetails["fcrm-reporting"].solution === 'object' ? projectDetails["fcrm-reporting"].solution.sql : ''}</code></pre>
+                            </CardContent>
+                          </Card>
+                          <Card>
+                            <CardHeader><CardTitle className="flex items-center gap-2"><Code className="h-5 w-5" />Python - SSIS Trigger & Report Automation</CardTitle></CardHeader>
+                            <CardContent>
+                              <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm"><code>{typeof projectDetails["fcrm-reporting"].solution === 'object' ? projectDetails["fcrm-reporting"].solution.python : ''}</code></pre>
+                            </CardContent>
+                          </Card>
+                          <Card>
+                            <CardHeader><CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" />Power BI DAX - Risk Dashboard Measures</CardTitle></CardHeader>
+                            <CardContent>
+                              <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm"><code>{typeof projectDetails["fcrm-reporting"].solution === 'object' ? projectDetails["fcrm-reporting"].solution.powerbi : ''}</code></pre>
+                            </CardContent>
+                          </Card>
+                          <Card>
+                            <CardHeader><CardTitle className="flex items-center gap-2"><FileSpreadsheet className="h-5 w-5" />QlikView - FCRM Data Model Script</CardTitle></CardHeader>
+                            <CardContent>
+                              <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm"><code>{typeof projectDetails["fcrm-reporting"].solution === 'object' ? projectDetails["fcrm-reporting"].solution.qlikview : ''}</code></pre>
+                            </CardContent>
+                          </Card>
+                        </TabsContent>
+                      </Tabs>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* FCRM Data Automation */}
+            <Card className="group hover:shadow-lg transition-all duration-300 border-border/50 hover:border-primary/30">
+              <CardHeader>
+                <div className="flex items-center gap-2 mb-2">
+                  <Cpu className="h-5 w-5 text-primary" />
+                  <Badge variant="secondary">Process Automation</Badge>
+                </div>
+                <CardTitle className="text-xl mb-2">FCRM Data Extraction & Process Automation Engine</CardTitle>
+                <CardDescription>
+                  Automated cross-platform data extraction from Oracle, SQL Server, and SAS datasets for AML investigations, regulatory compliance, and financial crime analytics.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {["SQL Server", "Oracle", "Python", "SAS", "Excel", "QlikView", "SSIS"].map((tech) => (
+                    <Badge key={tech} variant="outline" className="text-xs">{tech}</Badge>
+                  ))}
+                </div>
+                <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+                  <span className="flex items-center gap-1"><TrendingUp className="h-4 w-4" />15hrs/week saved</span>
+                  <span className="flex items-center gap-1"><Users className="h-4 w-4" />FCRM Analysts</span>
+                </div>
+                <div className="flex gap-2">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm"><ExternalLink className="h-4 w-4 mr-1" />View Details</Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle className="text-2xl font-serif">{projectDetails["fcrm-data-automation"].title}</DialogTitle>
+                        <DialogDescription>FCRM Data Extraction & Process Automation</DialogDescription>
+                      </DialogHeader>
+                      <Tabs defaultValue="problem" className="mt-4">
+                        <TabsList className="grid w-full grid-cols-4">
+                          <TabsTrigger value="problem">Problem</TabsTrigger>
+                          <TabsTrigger value="architecture">Architecture</TabsTrigger>
+                          <TabsTrigger value="solution">Solution</TabsTrigger>
+                          <TabsTrigger value="code">Code</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="problem" className="mt-4">
+                          <Card>
+                            <CardHeader><CardTitle>Problem Statement</CardTitle></CardHeader>
+                            <CardContent><p className="text-muted-foreground leading-relaxed">{projectDetails["fcrm-data-automation"].problemStatement}</p></CardContent>
+                          </Card>
+                        </TabsContent>
+                        <TabsContent value="architecture" className="mt-4">
+                          <Card>
+                            <CardHeader><CardTitle>System Architecture</CardTitle></CardHeader>
+                            <CardContent>
+                              <img src={projectDetails["fcrm-data-automation"].architecture || "/placeholder.svg"} alt="FCRM Automation Architecture" className="w-full rounded-lg" />
+                            </CardContent>
+                          </Card>
+                        </TabsContent>
+                        <TabsContent value="solution" className="mt-4">
+                          <Card>
+                            <CardHeader><CardTitle>Technical Solution</CardTitle></CardHeader>
+                            <CardContent className="space-y-4">
+                              <div className="grid md:grid-cols-2 gap-4">
+                                <div>
+                                  <h4 className="font-semibold mb-2">Key Components:</h4>
+                                  <ul className="text-sm text-muted-foreground space-y-1">
+                                    <li>- Oracle linked server cross-platform queries</li>
+                                    <li>- Python automation for SAS dataset conversion</li>
+                                    <li>- Automated AML threshold monitoring</li>
+                                    <li>- Structuring and smurfing pattern detection</li>
+                                    <li>- Watchlist cross-referencing engine</li>
+                                    <li>- QlikView associative data model</li>
+                                  </ul>
+                                </div>
+                                <div>
+                                  <h4 className="font-semibold mb-2">Results Achieved:</h4>
+                                  <ul className="text-sm text-muted-foreground space-y-1">
+                                    <li>- Saved 15+ hours per week in manual extractions</li>
+                                    <li>- 100% FICA/FIC Act compliance on submissions</li>
+                                    <li>- Automated sanctioned jurisdiction flagging</li>
+                                    <li>- Real-time structuring pattern detection</li>
+                                    <li>- Unified Oracle + SQL Server investigation view</li>
+                                  </ul>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </TabsContent>
+                        <TabsContent value="code" className="space-y-4">
+                          <Card>
+                            <CardHeader><CardTitle className="flex items-center gap-2"><Database className="h-5 w-5" />SQL - Oracle/SQL Server Cross-Platform Investigation</CardTitle></CardHeader>
+                            <CardContent>
+                              <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm"><code>{typeof projectDetails["fcrm-data-automation"].solution === 'object' ? projectDetails["fcrm-data-automation"].solution.sql : ''}</code></pre>
+                            </CardContent>
+                          </Card>
+                          <Card>
+                            <CardHeader><CardTitle className="flex items-center gap-2"><Code className="h-5 w-5" />Python - AML Automation & SAS Integration</CardTitle></CardHeader>
+                            <CardContent>
+                              <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm"><code>{typeof projectDetails["fcrm-data-automation"].solution === 'object' ? projectDetails["fcrm-data-automation"].solution.python : ''}</code></pre>
+                            </CardContent>
+                          </Card>
+                          <Card>
+                            <CardHeader><CardTitle className="flex items-center gap-2"><FileSpreadsheet className="h-5 w-5" />QlikView - FCRM Associative Data Model</CardTitle></CardHeader>
+                            <CardContent>
+                              <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm"><code>{typeof projectDetails["fcrm-data-automation"].solution === 'object' ? projectDetails["fcrm-data-automation"].solution.qlikview : ''}</code></pre>
+                            </CardContent>
+                          </Card>
+                        </TabsContent>
+                      </Tabs>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>
@@ -5382,3 +6143,5 @@ export default function Portfolio() {
     </div>
   )
 }
+
+export default Portfolio

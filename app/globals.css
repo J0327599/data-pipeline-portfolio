@@ -79,7 +79,7 @@
   /* Updated font variables to use Playfair Display and Source Sans Pro */
   --font-sans: var(--font-source-sans-pro);
   --font-serif: var(--font-playfair-display);
-  --font-mono: var(--font-geist-mono);
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

@@ -22,15 +22,19 @@ import {
   FileText,
   FolderOpen,
   Home,
+  Lightbulb,
   Mail,
   Menu,
   MessageSquare,
+  Target,
   TrendingUp,
   Users,
   X,
   BarChart3,
   CheckCircle2,
   Download,
+  MapPin,
+  Phone,
 } from "lucide-react"
 
 // Define ProjectDetail interface

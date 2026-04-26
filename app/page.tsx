@@ -4427,6 +4427,13 @@ const Portfolio = () => {
                 Projects
               </button>
               <button
+                onClick={() => scrollToSection("powerbi")}
+                className="flex items-center gap-2 text-sm hover:text-primary transition-colors"
+              >
+                <BarChart3 className="h-4 w-4" />
+                Power BI
+              </button>
+              <button
                 onClick={() => scrollToSection("contact")}
                 className="flex items-center gap-2 text-sm hover:text-primary transition-colors"
               >
@@ -4474,6 +4481,13 @@ const Portfolio = () => {
               >
                 <FolderOpen className="h-5 w-5" />
                 <span>Projects</span>
+              </button>
+              <button
+                onClick={() => scrollToSection("powerbi")}
+                className="flex items-center gap-3 w-full px-4 py-3 hover:bg-muted rounded-lg transition-colors"
+              >
+                <BarChart3 className="h-5 w-5" />
+                <span>Power BI</span>
               </button>
               <button
                 onClick={() => scrollToSection("contact")}
@@ -4562,35 +4576,42 @@ const Portfolio = () => {
               </CardContent>
             </Card>
 
-            <Card className="hover:shadow-lg transition-shadow">
+            <Card className="hover:shadow-lg transition-shadow border-primary/20">
               <CardHeader>
                 <div className="flex items-center gap-3">
-                  <TrendingUp className="h-8 w-8 text-primary" />
-                  <CardTitle>Analytics & Visualization</CardTitle>
+                  <BarChart3 className="h-8 w-8 text-primary" />
+                  <CardTitle>Power BI & Visualization</CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div>
                     <div className="flex justify-between mb-2">
-                      <span>Tableau & Looker</span>
+                      <span>Power BI (DAX, Power Query, M)</span>
+                      <span className="text-sm text-muted-foreground">98%</span>
+                    </div>
+                    <Progress value={98} className="h-2" />
+                  </div>
+                  <div>
+                    <div className="flex justify-between mb-2">
+                      <span>Power BI Service & Admin</span>
                       <span className="text-sm text-muted-foreground">95%</span>
                     </div>
                     <Progress value={95} className="h-2" />
                   </div>
                   <div>
                     <div className="flex justify-between mb-2">
-                      <span>Advanced Excel & Power BI</span>
+                      <span>QlikView & Tableau</span>
                       <span className="text-sm text-muted-foreground">92%</span>
                     </div>
                     <Progress value={92} className="h-2" />
                   </div>
                   <div>
                     <div className="flex justify-between mb-2">
-                      <span>Statistical Analysis (SAS/R)</span>
-                      <span className="text-sm text-muted-foreground">90%</span>
+                      <span>Advanced Excel & Data Modeling</span>
+                      <span className="text-sm text-muted-foreground">95%</span>
                     </div>
-                    <Progress value={90} className="h-2" />
+                    <Progress value={95} className="h-2" />
                   </div>
                 </div>
               </CardContent>
@@ -6056,8 +6077,294 @@ const Portfolio = () => {
         </div>
       </section>
 
+      {/* Power BI Portfolio Section */}
+      <section id="powerbi" className="py-16 px-4 bg-card">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <Badge variant="secondary" className="mb-4">Power BI Expertise</Badge>
+            <h2 className="text-4xl font-serif font-bold mb-4">Power BI Portfolio</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Showcasing my expertise in Microsoft Power BI - from interactive dashboards to enterprise-wide analytics solutions with DAX, Power Query, and data modeling.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Power BI Project 1 - Executive Dashboard */}
+            <Card className="group hover:shadow-lg transition-all duration-300 border-border/50 hover:border-primary/30">
+              <CardHeader>
+                <div className="flex items-center gap-2 mb-2">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                  <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">Featured</Badge>
+                </div>
+                <CardTitle className="text-xl mb-2">Executive KPI Dashboard</CardTitle>
+                <CardDescription>
+                  Real-time executive dashboard providing C-suite visibility into sales performance, operational metrics, and financial KPIs across multiple business units.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {["DAX", "Power Query", "Row-Level Security", "Paginated Reports", "Dataflows"].map((tech) => (
+                    <Badge key={tech} variant="outline" className="text-xs">{tech}</Badge>
+                  ))}
+                </div>
+                <div className="bg-muted rounded-lg p-4 mb-4">
+                  <h4 className="font-semibold text-sm mb-2">Key DAX Measures:</h4>
+                  <pre className="text-xs overflow-x-auto"><code>{`// YTD Revenue with Time Intelligence
+YTD Revenue = 
+CALCULATE(
+    SUM(Sales[Revenue]),
+    DATESYTD('Calendar'[Date])
+)
+
+// Revenue vs Target Variance %
+Variance % = 
+DIVIDE(
+    [Actual Revenue] - [Target Revenue],
+    [Target Revenue],
+    0
+) * 100`}</code></pre>
+                </div>
+                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-1"><TrendingUp className="h-4 w-4" />40% faster decisions</span>
+                  <span className="flex items-center gap-1"><Users className="h-4 w-4" />200+ users</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Power BI Project 2 - Financial Analytics */}
+            <Card className="group hover:shadow-lg transition-all duration-300 border-border/50 hover:border-primary/30">
+              <CardHeader>
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                  <Badge variant="secondary">Finance</Badge>
+                </div>
+                <CardTitle className="text-xl mb-2">Financial P&L Analytics</CardTitle>
+                <CardDescription>
+                  Comprehensive profit and loss analysis with drill-through capabilities, budget vs actual comparisons, and automated variance commentary.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {["DAX", "Calculation Groups", "What-If Parameters", "Composite Models"].map((tech) => (
+                    <Badge key={tech} variant="outline" className="text-xs">{tech}</Badge>
+                  ))}
+                </div>
+                <div className="bg-muted rounded-lg p-4 mb-4">
+                  <h4 className="font-semibold text-sm mb-2">Advanced P&L DAX:</h4>
+                  <pre className="text-xs overflow-x-auto"><code>{`// Dynamic P&L Line Calculation
+P&L Value = 
+VAR CurrentRow = 
+    SELECTEDVALUE(PLStructure[LineItem])
+RETURN
+SWITCH(
+    TRUE(),
+    CurrentRow = "Revenue", [Total Revenue],
+    CurrentRow = "COGS", [Cost of Goods Sold],
+    CurrentRow = "Gross Profit", 
+        [Total Revenue] - [Cost of Goods Sold],
+    CurrentRow = "Net Income",
+        [Gross Profit] - [Operating Expenses],
+    BLANK()
+)`}</code></pre>
+                </div>
+                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-1"><TrendingUp className="h-4 w-4" />Monthly close: 5 days to 1</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Power BI Project 3 - HR Analytics */}
+            <Card className="group hover:shadow-lg transition-all duration-300 border-border/50 hover:border-primary/30">
+              <CardHeader>
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="h-5 w-5 text-primary" />
+                  <Badge variant="secondary">HR Analytics</Badge>
+                </div>
+                <CardTitle className="text-xl mb-2">Workforce Analytics Suite</CardTitle>
+                <CardDescription>
+                  Employee analytics covering headcount trends, attrition analysis, diversity metrics, and workforce planning with predictive modeling.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {["DAX", "Power Query M", "DirectQuery", "Incremental Refresh"].map((tech) => (
+                    <Badge key={tech} variant="outline" className="text-xs">{tech}</Badge>
+                  ))}
+                </div>
+                <div className="bg-muted rounded-lg p-4 mb-4">
+                  <h4 className="font-semibold text-sm mb-2">Attrition Analysis DAX:</h4>
+                  <pre className="text-xs overflow-x-auto"><code>{`// Rolling 12-Month Attrition Rate
+Attrition Rate = 
+VAR Terminations = 
+    CALCULATE(
+        COUNTROWS(Employees),
+        Employees[Status] = "Terminated",
+        DATESINPERIOD(
+            'Calendar'[Date],
+            MAX('Calendar'[Date]),
+            -12, MONTH
+        )
+    )
+VAR AvgHeadcount = 
+    AVERAGEX(
+        DATESINPERIOD(...),
+        [Active Headcount]
+    )
+RETURN
+DIVIDE(Terminations, AvgHeadcount, 0)`}</code></pre>
+                </div>
+                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-1"><TrendingUp className="h-4 w-4" />Reduced attrition 15%</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Power BI Project 4 - Sales Pipeline */}
+            <Card className="group hover:shadow-lg transition-all duration-300 border-border/50 hover:border-primary/30">
+              <CardHeader>
+                <div className="flex items-center gap-2 mb-2">
+                  <Target className="h-5 w-5 text-primary" />
+                  <Badge variant="secondary">Sales</Badge>
+                </div>
+                <CardTitle className="text-xl mb-2">Sales Pipeline & CRM Analytics</CardTitle>
+                <CardDescription>
+                  End-to-end sales pipeline visualization with conversion funnels, win/loss analysis, and sales rep performance tracking integrated with Dynamics 365.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {["DAX", "Dynamics 365 Connector", "Dataverse", "AI Insights"].map((tech) => (
+                    <Badge key={tech} variant="outline" className="text-xs">{tech}</Badge>
+                  ))}
+                </div>
+                <div className="bg-muted rounded-lg p-4 mb-4">
+                  <h4 className="font-semibold text-sm mb-2">Sales Funnel DAX:</h4>
+                  <pre className="text-xs overflow-x-auto"><code>{`// Stage Conversion Rate
+Stage Conversion = 
+VAR CurrentStage = 
+    SELECTEDVALUE(Pipeline[Stage])
+VAR StageOrder = 
+    SELECTEDVALUE(Pipeline[StageOrder])
+VAR PrevStageCount = 
+    CALCULATE(
+        COUNTROWS(Opportunities),
+        Pipeline[StageOrder] = StageOrder - 1
+    )
+VAR CurrentCount = 
+    COUNTROWS(Opportunities)
+RETURN
+DIVIDE(CurrentCount, PrevStageCount, 0)`}</code></pre>
+                </div>
+                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-1"><TrendingUp className="h-4 w-4" />Win rate +22%</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Power BI Project 5 - Supply Chain */}
+            <Card className="group hover:shadow-lg transition-all duration-300 border-border/50 hover:border-primary/30">
+              <CardHeader>
+                <div className="flex items-center gap-2 mb-2">
+                  <Cpu className="h-5 w-5 text-primary" />
+                  <Badge variant="secondary">Operations</Badge>
+                </div>
+                <CardTitle className="text-xl mb-2">Supply Chain & Inventory</CardTitle>
+                <CardDescription>
+                  Real-time inventory management dashboard with demand forecasting, stockout predictions, and supplier performance metrics.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {["DAX", "R Visual", "Python Visual", "Streaming Dataset"].map((tech) => (
+                    <Badge key={tech} variant="outline" className="text-xs">{tech}</Badge>
+                  ))}
+                </div>
+                <div className="bg-muted rounded-lg p-4 mb-4">
+                  <h4 className="font-semibold text-sm mb-2">Inventory Health DAX:</h4>
+                  <pre className="text-xs overflow-x-auto"><code>{`// Days of Inventory (DOI)
+Days of Inventory = 
+VAR AvgDailySales = 
+    DIVIDE(
+        [Total Units Sold],
+        DISTINCTCOUNT('Calendar'[Date])
+    )
+VAR CurrentStock = 
+    SUM(Inventory[OnHand])
+RETURN
+DIVIDE(CurrentStock, AvgDailySales, 0)
+
+// Stockout Risk Flag
+Stockout Risk = 
+IF([Days of Inventory] < 7, "Critical",
+IF([Days of Inventory] < 14, "Warning",
+"Healthy"))`}</code></pre>
+                </div>
+                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-1"><TrendingUp className="h-4 w-4" />Stockouts -45%</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Power BI Project 6 - Customer 360 */}
+            <Card className="group hover:shadow-lg transition-all duration-300 border-border/50 hover:border-primary/30">
+              <CardHeader>
+                <div className="flex items-center gap-2 mb-2">
+                  <Lightbulb className="h-5 w-5 text-primary" />
+                  <Badge variant="secondary">Customer Analytics</Badge>
+                </div>
+                <CardTitle className="text-xl mb-2">Customer 360 Analytics</CardTitle>
+                <CardDescription>
+                  Unified customer view combining transactional data, behavioral insights, and predictive churn scoring with RLS for regional teams.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {["DAX", "Row-Level Security", "Bookmarks", "Drillthrough"].map((tech) => (
+                    <Badge key={tech} variant="outline" className="text-xs">{tech}</Badge>
+                  ))}
+                </div>
+                <div className="bg-muted rounded-lg p-4 mb-4">
+                  <h4 className="font-semibold text-sm mb-2">Customer Lifetime Value DAX:</h4>
+                  <pre className="text-xs overflow-x-auto"><code>{`// Customer Lifetime Value (CLV)
+CLV = 
+VAR AvgOrderValue = 
+    AVERAGEX(
+        Orders,
+        Orders[OrderTotal]
+    )
+VAR PurchaseFrequency = 
+    DIVIDE(
+        COUNTROWS(Orders),
+        DISTINCTCOUNT(Orders[CustomerID])
+    )
+VAR AvgLifespan = 3 // years
+RETURN
+AvgOrderValue * PurchaseFrequency * AvgLifespan`}</code></pre>
+                </div>
+                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-1"><TrendingUp className="h-4 w-4" />Retention +28%</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Power BI Certifications */}
+          <div className="mt-12 text-center">
+            <h3 className="text-xl font-semibold mb-4">Power BI Certifications & Skills</h3>
+            <div className="flex flex-wrap justify-center gap-3">
+              <Badge className="px-4 py-2 text-sm bg-primary/10 text-primary border-primary/30">Microsoft Certified: Power BI Data Analyst Associate</Badge>
+              <Badge className="px-4 py-2 text-sm bg-primary/10 text-primary border-primary/30">DAX & Data Modeling Expert</Badge>
+              <Badge className="px-4 py-2 text-sm bg-primary/10 text-primary border-primary/30">Power Query M Language</Badge>
+              <Badge className="px-4 py-2 text-sm bg-primary/10 text-primary border-primary/30">Power BI Service Administration</Badge>
+              <Badge className="px-4 py-2 text-sm bg-primary/10 text-primary border-primary/30">Paginated Reports (SSRS)</Badge>
+              <Badge className="px-4 py-2 text-sm bg-primary/10 text-primary border-primary/30">Power BI Embedded</Badge>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Contact Section */}
-      <section id="contact" className="py-16 px-4 bg-card">
+      <section id="contact" className="py-16 px-4 bg-background">
         <div className="max-w-xl mx-auto text-center">
           <h2 className="text-4xl font-serif font-bold mb-4">Let's Connect</h2>
           <p className="text-lg text-muted-foreground mb-8">
